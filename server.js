@@ -261,6 +261,27 @@ function broadcast(room) {
   room.clients.forEach(client => {
     try { client.response.write(`event: state\ndata: ${JSON.stringify(publicState(room, client.playerId))}\n\n`); } catch { room.clients.delete(client); }
   });
+  persist();
+}
+
+// ----- Room persistence (survives server restarts; on hosts with a persistent disk also survives sleep) -----
+const ROOMS_FILE = process.env.ROOMS_FILE || path.join(ROOT, '.rooms.json');
+const PERSIST_ENABLED = require.main === module; // off during unit tests
+function serializeRooms() { return JSON.stringify([...rooms.values()].map(room => ({ ...room, clients: undefined, botTimer: undefined }))); }
+let persistTimer = null;
+function persist() {
+  if (!PERSIST_ENABLED) return;
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => { fs.writeFile(ROOMS_FILE, serializeRooms(), error => { if (error) console.error('Room save failed:', error.message); }); }, 400);
+}
+function flushRooms() { if (!PERSIST_ENABLED) return; try { fs.writeFileSync(ROOMS_FILE, serializeRooms()); } catch (error) { console.error('Room flush failed:', error.message); } }
+function loadRooms() {
+  try {
+    if (!fs.existsSync(ROOMS_FILE)) return;
+    const data = JSON.parse(fs.readFileSync(ROOMS_FILE, 'utf8'));
+    for (const room of data) { room.clients = new Set(); delete room.botTimer; rooms.set(room.code, room); }
+    if (rooms.size) console.log(`Restored ${rooms.size} room(s) from ${ROOMS_FILE}`);
+  } catch (error) { console.error('Room restore failed:', error.message); }
 }
 
 function json(response, status, data) { response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data)); }
@@ -303,6 +324,10 @@ const server = http.createServer(async (request, response) => {
   } catch (error) { json(response, 400, { error: error.message || '処理に失敗しました' }); }
 });
 
-if (require.main === module) server.listen(PORT, '0.0.0.0', () => console.log(`ISLANDS & ROADS Online: http://localhost:${PORT}`));
+if (require.main === module) {
+  loadRooms();
+  for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { flushRooms(); process.exit(0); });
+  server.listen(PORT, '0.0.0.0', () => console.log(`ISLANDS & ROADS Online: http://localhost:${PORT}`));
+}
 
 module.exports = { server, rooms, createRoom, addPlayer, startRoom, act, publicState, validSettlement, validRoad };

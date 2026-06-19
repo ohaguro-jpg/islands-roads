@@ -82,3 +82,45 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 @media(max-width:760px){
   .roll-log{position:static;width:auto;max-width:320px;margin:6px auto 0}
 }
+
+/* ===== Bigger, more readable offline text + online switch links (latest override) ===== */
+/* Top players: larger name & VP */
+.topbar-players .player-name b{font-size:14px}
+.topbar-players .player-name small{font-size:11px}
+.topbar-players .vp{font-size:24px}
+.topbar-players .vp small{font-size:9px}
+/* Hand bar: larger resource icons & counts */
+.hand-bar-label{font-size:12px}
+.hand-bar .resource i{font-size:31px}
+.hand-bar .resource b{width:25px;height:25px;font-size:15px}
+.hand-bar-count{font-size:11px}
+/* Turn banner & setup guide */
+.turn-banner small{font-size:11px}
+.turn-banner strong{font-size:17px}
+.turn-score{font-size:15px}
+/* Sidebar: allow scroll instead of clipping when text is larger */
+.sidebar{overflow-y:auto!important}
+@media(min-width:1051px){
+  .sidebar{overflow-y:auto!important;font-size:13px}
+  .panel-heading h2,.sidebar .panel-heading h2{font-size:16px}
+  .build-card b{font-size:13px}
+  .build-card small{font-size:10px}
+  .build-card em{font-size:10px}
+  .build-art{font-size:22px}
+  .dev-play-btn{font-size:12px}
+  .dev-cards-list{font-size:11px}
+  .sidebar .trade-target-label{font-size:12px}
+  .sidebar .flex-trade-head{font-size:11px}
+  .quick-trade-btn{font-size:12px}
+  .bank-panel .trade-row select,.bank-panel .trade-row button{font-size:12px}
+  .bank-panel .my-harbors{font-size:11px}
+}
+/* Dice records: a touch larger */
+.roll-log-title{font-size:10px}
+.roll-entry .rl-name{font-size:11px}
+.roll-entry .rl-sum{font-size:17px}
+/* "Go online" link on the start screen */
+.online-switch{display:block;margin-top:12px;text-align:center;color:var(--blue);font-weight:700;font-size:15px;text-decoration:none;padding:10px;border:1.5px solid var(--blue);border-radius:10px;cursor:pointer}
+.online-switch:hover{background:#eef4f5}
+/* "Online" button inside the in-game corner controls */
+.corner-controls .cc-online{background:var(--blue);color:#fff;text-decoration:none;display:block}
