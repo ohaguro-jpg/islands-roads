@@ -28,8 +28,12 @@ function humanPair(room) {
   await wait(3300);
   if (room.game.turn !== 0 || room.game.stage !== 'roll') throw new Error(`second NPC setup stalled: ${room.game.turn}/${room.game.stage}`);
   act(room, 0, 'roll');
+  // 自分のターンで7が出たら盗賊処理を済ませてから終了（手札が少なければ捨て段階は来ない）
+  if (room.game.stage === 'robber') act(room, 0, 'moveRobber', { tile: room.game.tiles.find(t => t.id !== room.game.robberTile).id });
+  if (room.game.stage === 'steal') act(room, 0, 'steal', { victim: room.game.stealOptions[0] });
   act(room, 0, 'endTurn');
-  await wait(5000);
+  // NPC3人のターン（7が出ると盗賊処理ぶん時間がかかる）を十分待つ
+  await wait(11000);
   if (room.game.turn !== 0 || room.game.stage !== 'roll') throw new Error(`NPC turn cycle stalled: ${room.game.turn}/${room.game.stage}`);
   console.log('server core NPC test: PASS');
   console.log(JSON.stringify({ players: room.players.length, buildings: Object.keys(room.game.buildings).length, roads: Object.keys(room.game.roads).length, round: room.game.round, turn: room.game.turn }));

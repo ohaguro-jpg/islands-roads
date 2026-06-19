@@ -85,3 +85,14 @@
 .steal-grid button:hover{background:#f1ede1;border-color:#b88b2d}
 .steal-grid i{width:14px;height:14px;border-radius:50%;display:inline-block}
 .steal-grid small{margin-left:auto;color:#8a8577;font-weight:700}
+
+/* ===== Harbors on board + bank/harbor trade panel ===== */
+.harbor-link{stroke:#9c7a3a;stroke-width:3;stroke-dasharray:4 3}
+.harbor-marker{fill:#f3e7c6;stroke:#9c7a3a;stroke-width:2}
+.harbor-text{fill:#5b4a22;font-weight:800;pointer-events:none}
+.bank-line{display:grid;grid-template-columns:1fr auto auto 1fr auto;gap:5px;align-items:center}
+.bank-line select{width:100%;padding:6px;border:1px solid var(--line);border-radius:5px;background:white;font-size:13px}
+.bank-line .bank-rate{font-size:11px;font-weight:800;color:#9c7a3a;white-space:nowrap}
+.bank-line b{font-size:12px}
+.bank-line button{padding:7px 10px;border:0;border-radius:6px;background:var(--ink);color:#fff;font-weight:800;cursor:pointer;font-size:12px}
+.bank-line button:disabled{opacity:.4;cursor:not-allowed}

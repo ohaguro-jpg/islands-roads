@@ -60,7 +60,32 @@ function buildGeometry(random = true) {
     const key = [a, b].sort((x, y) => x - y).join('-');
     if (!edgeMap.has(key)) { edgeMap.set(key, edges.length); edges.push({ id: edges.length, a, b }); }
   }));
-  return { tiles, vertices, edges };
+  // 港: 海岸の辺に9個（default は固定配置、random はシャッフル）
+  const coastal = new Set(vertices.filter(v => v.tiles.length < 3).map(v => v.id));
+  const boundaryEdges = edges
+    .filter(e => coastal.has(e.a) && coastal.has(e.b) && vertices[e.a].tiles.filter(t => vertices[e.b].tiles.includes(t)).length === 1)
+    .map(e => ({ e, angle: Math.atan2((vertices[e.a].y + vertices[e.b].y) / 2 - 330, (vertices[e.a].x + vertices[e.b].x) / 2 - 350) }))
+    .sort((a, b) => a.angle - b.angle);
+  const harborTypes = random ? shuffle([null, null, null, null, 'wood', 'brick', 'wheat', 'sheep', 'ore']) : [null, 'wood', null, 'brick', null, 'wheat', 'sheep', null, 'ore'];
+  const harbors = {};
+  const usedHarborVertices = new Set();
+  for (let i = 0; i < 9 && boundaryEdges.length; i++) {
+    const target = Math.floor(i * boundaryEdges.length / 9);
+    let offset = 0;
+    while (offset < boundaryEdges.length && [boundaryEdges[(target + offset) % boundaryEdges.length].e.a, boundaryEdges[(target + offset) % boundaryEdges.length].e.b].some(v => usedHarborVertices.has(v))) offset++;
+    const he = boundaryEdges[(target + offset) % boundaryEdges.length].e;
+    usedHarborVertices.add(he.a); usedHarborVertices.add(he.b);
+    harbors[he.a] = harborTypes[i]; harbors[he.b] = harborTypes[i];
+  }
+  return { tiles, vertices, edges, harbors };
+}
+function maritimeRate(game, player, resource) {
+  let rate = 4;
+  for (const [vertex, type] of Object.entries(game.harbors || {})) {
+    if (game.buildings[vertex]?.player !== player) continue;
+    if (type === resource) rate = 2; else if (type == null) rate = Math.min(rate, 3);
+  }
+  return rate;
 }
 
 function createRoom(name, boardMode) {
@@ -261,6 +286,14 @@ function act(room, player, type, payload = {}) {
   } else if (type === 'endTurn') {
     if (game.turn !== player || game.stage !== 'build') throw new Error('ターンを終了できません');
     game.turn = (game.turn + 1) % room.players.length; if (game.turn === 0) game.round++; game.stage = 'roll'; game.rolled = false; game.dice = null;
+  } else if (type === 'bankTrade') {
+    if (game.turn !== player || game.stage !== 'build') throw new Error('今は交換できません');
+    const give = payload.give, get = payload.get;
+    if (!RESOURCES.includes(give) || !RESOURCES.includes(get) || give === get) throw new Error('交換条件が不正です');
+    const rate = maritimeRate(game, player, give);
+    if (game.hands[player][give] < rate) throw new Error(`${give}が${rate}枚必要です`);
+    if (game.bank[get] < 1) throw new Error('銀行に在庫がありません');
+    game.hands[player][give] -= rate; game.bank[give] += rate; game.hands[player][get]++; game.bank[get]--;
   } else if (type === 'offerTrade') {
     if (game.turn !== player || game.stage !== 'build') throw new Error('今は交換できません');
     const to = Number(payload.to), giveAmount = Number(payload.giveAmount), getAmount = Number(payload.getAmount);
@@ -285,7 +318,7 @@ function publicState(room, playerId) {
   const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
-  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: game.vp, winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
+  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: game.vp, winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
 }
 function findIdentity(room, authToken) { return authToken ? room.players.find(player => player.token === authToken && !player.isBot) : null; }
 function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); }
