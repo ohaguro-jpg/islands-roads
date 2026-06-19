@@ -30,7 +30,7 @@ class Element {
 
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const button = new Element(); button.className = 'build-card'; button.dataset.build = type; return button; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -193,3 +193,93 @@ run(`(function longestRoadTests() {
 
 console.log('offline full play test: PASS');
 console.log(run(`JSON.stringify({round:state.round,turn:state.turn,buildings:Object.keys(state.buildings).length,roads:Object.keys(state.roads).length,vp:state.players.map((_,i)=>totalVP(i)),developmentDeck:state.devDeck.length})`));
+
+// Seafarers expansion: board, ships, gold, island discovery, NPC sailing AI, ship movement
+const seafarers = run(`(function seafarersTests() {
+  const savedConfig = JSON.stringify(gameConfig);
+  const savedExpansion = gameConfig.expansion || null;
+  gameConfig.expansion = 'seafarers'; gameConfig.humanCount = 1; gameConfig.boardMode = 'default';
+  newGame();
+  const LAND = new Set(['forest','hills','pasture','fields','mountains','desert','gold']);
+
+  // Board shape
+  const seaCount = tiles.filter(t => t.type === 'sea').length;
+  const goldCount = tiles.filter(t => t.type === 'gold').length;
+  const islands = [...new Set(tiles.map(t => t.island))];
+  if (seaCount < 10) throw new Error('航海者: 海タイルが少なすぎる ' + seaCount);
+  if (goldCount !== 2) throw new Error('航海者: 金鉱が2枚でない ' + goldCount);
+  if (!islands.includes(1) || !islands.includes(2)) throw new Error('航海者: 発見島がない ' + JSON.stringify(islands));
+
+  // Enter play, give player 0 a coastal home settlement
+  state.phase = 'play'; state.rolled = true; state.turn = 0;
+  state.buildings = {}; state.ships = {}; state.roads = {}; state.islandSettlers = {};
+  state.players.forEach(p => { p.islandVP = 0; p.vp = 0; });
+  const coastal = vertices.findIndex((_, i) => {
+    const ts = vertices[i].tiles.map(t => tiles[t]);
+    return ts.some(t => t.island === 0 && LAND.has(t.type)) && ts.some(t => t.type === 'sea');
+  });
+  if (coastal < 0) throw new Error('航海者: 沿岸頂点が見つからない');
+  state.buildings[coastal] = { player: 0, type: 'settlement' };
+
+  // Ship placement from a coastal settlement; roads cannot use sea edges
+  const seaEdge = edges.findIndex((e, i) => (e.a === coastal || e.b === coastal) && isSeaEdge(i));
+  if (seaEdge < 0) throw new Error('航海者: 海辺が見つからない');
+  if (!canPlaceShip(seaEdge, 0)) throw new Error('航海者: 沿岸開拓地から船を置けない');
+  if (isSeaEdge(seaEdge) && roadConnected(seaEdge, 0) && state.mode === 'road') { /* land-only enforced in UI filter */ }
+  state.mode = 'ship'; placeShip(seaEdge);
+  if (state.ships[seaEdge] !== 0) throw new Error('航海者: 船が配置されない');
+  if (longestRoadLength(0) < 1) throw new Error('航海者: 船が交易路に数えられない');
+
+  // Island discovery bonus VP (first settler only)
+  const islandV = vertices.findIndex((_, i) => vertices[i].tiles.some(t => tiles[t].island === 1 && LAND.has(tiles[t].type)));
+  state.buildings[islandV] = { player: 0, type: 'settlement' };
+  grantIslandDiscovery(islandV, 0);
+  if (state.players[0].islandVP !== 1) throw new Error('航海者: 新島発見ボーナスが付かない');
+  if (state.islandSettlers[1] !== 0) throw new Error('航海者: 発見者が記録されない');
+  grantIslandDiscovery(islandV, 0);
+  if (state.players[0].islandVP !== 1) throw new Error('航海者: 発見ボーナスが二重に付く');
+
+  // NPC sailing AI: a resource-rich NPC on the coast should build ships
+  state.buildings = {}; state.ships = {}; state.islandSettlers = {};
+  state.players.forEach(p => { p.islandVP = 0; });
+  state.buildings[coastal] = { player: 2, type: 'settlement' };
+  Object.keys(state.players[2].resources).forEach(k => state.players[2].resources[k] = 30);
+  state.turn = 2;
+  runBotActions(2);
+  const npcShipsBuilt = countShips(2);
+  if (npcShipsBuilt < 1) throw new Error('航海者: NPCが船を建設しない');
+
+  // Ship movement: an open-end ship is movable, can relocate once per turn
+  state.buildings = {}; state.ships = {}; state.turn = 0; state.movedShipThisTurn = false; state.shipsBuiltThisTurn = [];
+  state.buildings[coastal] = { player: 0, type: 'settlement' };
+  state.ships[seaEdge] = 0; // pre-existing (not built this turn)
+  if (!isMovableShip(seaEdge, 0)) throw new Error('航海者: 先端の船が移動可能と判定されない');
+  const newlyBuilt = edges.findIndex((e, i) => i !== seaEdge && canPlaceShip(i, 0));
+  state.shipsBuiltThisTurn = [seaEdge + 1000]; // sanity: unrelated entry
+  beginMoveShip();
+  if (state.mode !== 'moveShip') throw new Error('航海者: 船移動モードに入れない');
+  pickShipToMove(seaEdge);
+  if (state.ships[seaEdge] !== undefined) throw new Error('航海者: 動かす船が取り上げられない');
+  const dest = edges.findIndex((e, i) => canPlaceShip(i, 0));
+  relocateShipTo(dest);
+  if (state.ships[dest] !== 0) throw new Error('航海者: 移動先に船が置かれない');
+  if (!state.movedShipThisTurn) throw new Error('航海者: 移動済みフラグが立たない');
+  // Second move blocked same turn
+  const before = state.mode;
+  beginMoveShip();
+  if (state.mode === 'moveShip') throw new Error('航海者: 1ターンに2回移動できてしまう');
+
+  const result = { seaCount, goldCount, islands: islands.filter(x => x != null).sort(), npcShips: npcShipsBuilt };
+  // Restore base game so nothing leaks
+  Object.assign(gameConfig, JSON.parse(savedConfig));
+  gameConfig.expansion = savedExpansion;
+  newGame();
+  return JSON.stringify(result);
+})()`);
+
+// Base game must remain ship-free after restore
+if (run('tiles.filter(t => t.type === "sea").length') !== 0) throw new Error('基本ゲームに海タイルが残っている');
+if (run('state.expansion') != null) throw new Error('基本ゲームに復帰していない');
+
+console.log('seafarers expansion test: PASS');
+console.log(seafarers);

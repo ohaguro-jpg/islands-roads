@@ -138,3 +138,11 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 #board[data-expansion="seafarers"] .hex.sea .harbor{display:none}
 #shipBuildBtn{display:none}
 .expansion-seafarers #shipBuildBtn{display:grid}
+/* Seafarers: ship-move button (build panel), rules block, movable-ship highlight */
+.ship-move-btn{display:none;width:100%;margin-top:8px;padding:10px;border:1.5px solid #3a7890;border-radius:10px;background:#eaf4f7;color:#1a4a5e;font-weight:700;font-size:13px;cursor:pointer}
+.ship-move-btn:disabled{opacity:.4;cursor:not-allowed}
+.ship-move-btn.active{background:#3a7890;color:#fff}
+.expansion-seafarers .ship-move-btn{display:block}
+.edge.available.ship-movable{background:#5bc8f5;box-shadow:0 0 8px #5bc8f5}
+.rules-seafarers{margin-top:10px;padding:12px 14px;border-radius:12px;background:#eaf4f7;border:1px solid #bcd9e2}
+.rules-expansion-title{margin:0 0 6px;font-weight:800;color:#1a4a5e}

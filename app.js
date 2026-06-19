@@ -237,7 +237,8 @@ function newGame() {
     buildings: {}, roads: {}, harbors: {}, ships: {}, bank: { wood: 19, brick: 19, wheat: 19, sheep: 19, ore: 19 }, robberTile: null, pendingRobberTile: null, pirateTile: null, pendingPirateTile: null, freeRoads: 0, recentBotMoves: [], longestRoadOwner: null, largestArmyOwner: null,
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
     gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false,
-    islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null
+    islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null,
+    movedShipThisTurn: false, shipsBuiltThisTurn: []
   };
   scale = .82;
   buildBoard();
@@ -671,6 +672,14 @@ function render() {
     else if (buildType === 'ship') button.disabled = state.resolvingSeven || botTurnNow || !state.rolled || !canAfford('ship', state.turn) || !hasPieceAvailable(state.turn, 'ship') || state.expansion !== 'seafarers';
     else button.disabled = state.resolvingSeven || botTurnNow || !state.rolled || !canAfford(buildType, state.turn) || !hasPieceAvailable(state.turn, buildType);
   });
+  const moveShipBtn = $('#moveShipBtn');
+  if (moveShipBtn) {
+    const inMove = state.mode === 'moveShip';
+    const canMove = state.expansion === 'seafarers' && !setup && !state.resolvingSeven && !botTurnNow && state.rolled && !state.movedShipThisTurn && edges.some((_, i) => isMovableShip(i, state.turn));
+    moveShipBtn.disabled = !inMove && !canMove;
+    moveShipBtn.classList.toggle('active', inMove);
+    moveShipBtn.textContent = inMove ? '✕ 船の移動をやめる' : '⛵ 船を移動（1ターン1回）';
+  }
   const setupSelectionReady = state.setupPart === 'settlement' ? state.pendingSetupVertex != null : state.pendingSetupEdge != null;
   $('#rollBtn').disabled = setup ? botTurnNow || !setupSelectionReady : state.rolled || botTurnNow;
   $('#endTurnBtn').disabled = setup || state.resolvingSeven || (!botTurnNow && !state.rolled);
@@ -799,7 +808,7 @@ function updateAvailable() {
         element.style.setProperty('--preview-color', state.players[actor].color);
       }
     });
-    else $$('.edge').filter(element => state.roads[element.dataset.edge] === undefined && edgeTouches(+element.dataset.edge, state.setupVertex)).forEach(element => {
+    else $$('.edge').filter(element => state.roads[element.dataset.edge] === undefined && !isSeaEdge(+element.dataset.edge) && edgeTouches(+element.dataset.edge, state.setupVertex)).forEach(element => {
       const edge = +element.dataset.edge;
       element.classList.add('available', 'setup-candidate');
       if (edge === state.pendingSetupEdge) {
@@ -820,6 +829,8 @@ function updateAvailable() {
   if (!state.mode || currentIsBot()) return;
   if (state.mode === 'road') $$('.edge').filter(element => state.roads[element.dataset.edge] === undefined && !isSeaEdge(+element.dataset.edge) && roadConnected(+element.dataset.edge, actor)).forEach(element => element.classList.add('available'));
   if (state.mode === 'ship') $$('.edge').filter(element => canPlaceShip(+element.dataset.edge, actor)).forEach(element => element.classList.add('available'));
+  if (state.mode === 'moveShip' && state.movingShip == null) $$('.edge').filter(element => isMovableShip(+element.dataset.edge, actor)).forEach(element => element.classList.add('available', 'ship-movable'));
+  if (state.mode === 'moveShip' && state.movingShip != null) $$('.edge').filter(element => canPlaceShip(+element.dataset.edge, actor)).forEach(element => element.classList.add('available'));
   if (state.mode === 'settlement') $$('.node').filter(element => canSettle(+element.dataset.node, actor)).forEach(element => element.classList.add('available'));
   if (state.mode === 'city') $$('.node').filter(element => state.buildings[element.dataset.node]?.player === actor && state.buildings[element.dataset.node].type === 'settlement').forEach(element => element.classList.add('available', 'upgrade-target'));
 }
@@ -906,9 +917,15 @@ function canPlaceShip(edgeIndex, player) {
 
 function placeShip(edgeIndex) {
   const me = state.turn;
+  if (state.mode === 'moveShip') {
+    if (state.movingShip == null) pickShipToMove(edgeIndex);
+    else relocateShipTo(edgeIndex);
+    return;
+  }
   if (currentIsBot() || state.mode !== 'ship' || !hasPieceAvailable(me, 'ship') || !canPlaceShip(edgeIndex, me)) return;
   pay('ship', me);
   state.ships[edgeIndex] = me;
+  (state.shipsBuiltThisTurn = state.shipsBuiltThisTurn || []).push(edgeIndex);
   state.mode = null;
   updateAwards();
   toast('船を建設しました');
@@ -919,6 +936,63 @@ function placeShip(edgeIndex) {
 
 function countShips(player) {
   return Object.values(state.ships).filter(p => p === player).length;
+}
+
+// A ship can be relocated if it sits at the open end of a route: one endpoint has
+// no building and no other ship of the same player. Ships built/moved this turn are locked.
+function isMovableShip(edgeIndex, player) {
+  if (state.ships[edgeIndex] !== player) return false;
+  if ((state.shipsBuiltThisTurn || []).includes(edgeIndex)) return false;
+  const edge = edges[edgeIndex];
+  return [edge.a, edge.b].some(vertex => {
+    if (state.buildings[vertex]) return false;
+    return !edges.some((other, i) => i !== edgeIndex && (other.a === vertex || other.b === vertex) && state.ships[i] === player);
+  });
+}
+
+function beginMoveShip() {
+  const me = state.turn;
+  if (state.phase !== 'play' || currentIsBot() || !state.rolled || state.resolvingSeven) return;
+  if (state.expansion !== 'seafarers') return;
+  if (state.movedShipThisTurn) return toast('船の移動は1ターンに1回までです');
+  const movable = edges.some((_, i) => isMovableShip(i, me));
+  if (!movable) return toast('動かせる船がありません（航路の先端の船だけ動かせます）');
+  state.mode = 'moveShip';
+  state.movingShip = null;
+  render();
+  toast('動かす船（航路の先端）を選んでください');
+}
+
+function pickShipToMove(edgeIndex) {
+  const me = state.turn;
+  if (!isMovableShip(edgeIndex, me)) return;
+  state.movingShip = edgeIndex;
+  delete state.ships[edgeIndex];
+  render();
+  toast('移動先の海路を選んでください');
+}
+
+function relocateShipTo(edgeIndex) {
+  const me = state.turn;
+  if (state.movingShip == null) return;
+  if (!canPlaceShip(edgeIndex, me)) return;
+  state.ships[edgeIndex] = me;
+  state.movingShip = null;
+  state.movedShipThisTurn = true;
+  state.mode = null;
+  updateAwards();
+  soundEffect('build');
+  toast('船を移動しました');
+  render();
+  checkWin(me);
+}
+
+function cancelMoveShip() {
+  const me = state.turn;
+  if (state.mode !== 'moveShip') return;
+  if (state.movingShip != null) { state.ships[state.movingShip] = me; state.movingShip = null; }
+  state.mode = null;
+  render();
 }
 
 function canSettle(vertex, player) {
@@ -977,7 +1051,7 @@ function placeBuilding(vertex) {
 function placeRoad(edgeIndex) {
   const me = state.turn;
   if (state.phase === 'setup') {
-    if (currentIsBot() || state.setupPart !== 'road' || state.roads[edgeIndex] !== undefined || !edgeTouches(edgeIndex, state.setupVertex)) return;
+    if (currentIsBot() || state.setupPart !== 'road' || state.roads[edgeIndex] !== undefined || isSeaEdge(edgeIndex) || !edgeTouches(edgeIndex, state.setupVertex)) return;
     state.pendingSetupEdge = edgeIndex;
     toast('街道を選びました。下の「ここに決定」を押してください');
     render();
@@ -1079,7 +1153,7 @@ function scheduleBotSetup() {
     render();
     setTimeout(() => {
       if (version !== gameVersion || state.phase !== 'setup' || state.setupStep !== expectedStep || state.turn !== expectedPlayer || state.setupPart !== 'road') return;
-      const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && edgeTouches(i, vertex));
+      const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && edgeTouches(i, vertex));
       state.roads[roads[Math.floor(Math.random() * roads.length)]] = player;
       toast(`${state.players[player].name}が開拓地と街道を配置`);
       finishSetupTurn();
@@ -1097,7 +1171,7 @@ function forceSetupNpc() {
     placeInitialSettlement(state.setupVertex, player);
     state.setupPart = 'road';
   }
-  const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && edgeTouches(i, state.setupVertex));
+  const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && edgeTouches(i, state.setupVertex));
   if (!roads.length) return;
   state.roads[roads[0]] = player;
   toast(`${state.players[player].name}の初期配置を完了しました`);
@@ -1478,6 +1552,8 @@ function advanceTurn() {
   state.turn = (state.turn + 1) % state.players.length;
   if (state.turn === 0) state.round++;
   state.rolled = false;
+  state.movedShipThisTurn = false;
+  state.shipsBuiltThisTurn = [];
   resetFlexTrade();
   $('#diceResult').innerHTML = '<span>—</span><span>—</span>';
   render();
@@ -1630,6 +1706,57 @@ function roadValue(edgeIndex, player) {
   }));
 }
 
+// Seafarers: a settlement spot is worth more on an undiscovered island (bonus VP)
+function botVertexValue(vertex) {
+  let score = setupVertexScore(vertex);
+  if (state.expansion === 'seafarers') {
+    vertices[vertex].tiles.forEach(tileIndex => {
+      const island = tiles[tileIndex]?.island;
+      if (island != null && island !== 0 && state.islandSettlers[island] == null) score += 6;
+    });
+  }
+  return score;
+}
+
+// Centroids of islands no one has discovered yet — NPCs sail toward these
+function unclaimedIslandCentroids() {
+  const groups = {};
+  tiles.forEach(tile => {
+    if (tile.island != null && tile.island !== 0 && state.islandSettlers[tile.island] == null) {
+      (groups[tile.island] = groups[tile.island] || []).push(tile);
+    }
+  });
+  return Object.values(groups).map(list => ({
+    x: list.reduce((sum, tile) => sum + tile.x, 0) / list.length,
+    y: list.reduce((sum, tile) => sum + tile.y, 0) / list.length
+  }));
+}
+
+// How useful is building a ship on this edge for an NPC? Higher = settle spot reached
+// or meaningful progress sailing toward an undiscovered island.
+function shipValue(edgeIndex, player) {
+  const LAND = new Set(['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert', 'gold']);
+  const edge = edges[edgeIndex];
+  const centroids = unclaimedIslandCentroids();
+  let best = 0;
+  [edge.a, edge.b].forEach(vertexIndex => {
+    const vertex = vertices[vertexIndex];
+    if (!state.buildings[vertexIndex] && canPlaceInitialSettlement(vertexIndex) && vertex.tiles.some(t => LAND.has(tiles[t].type))) {
+      let value = setupVertexScore(vertexIndex) + 2;
+      vertex.tiles.forEach(t => {
+        const island = tiles[t]?.island;
+        if (island != null && island !== 0 && state.islandSettlers[island] == null) value += 6;
+      });
+      best = Math.max(best, value);
+    }
+    if (centroids.length) {
+      const nearest = Math.min(...centroids.map(c => Math.hypot(c.x - vertex.x, c.y - vertex.y)));
+      best = Math.max(best, 4 - nearest / 90);
+    }
+  });
+  return best;
+}
+
 function runBotActions(player) {
   const rules = botRules();
   const messages = [];
@@ -1646,15 +1773,16 @@ function runBotActions(player) {
     }
     const settlements = vertices.map((_, i) => i).filter(vertex => canSettle(vertex, player));
     if (settlements.length && hasPieceAvailable(player, 'settlement') && prepareCost(player, 'settlement')) {
-      const vertex = settlements.sort((a, b) => setupVertexScore(b) - setupVertexScore(a))[0];
+      const vertex = settlements.sort((a, b) => botVertexValue(b) - botVertexValue(a))[0];
       pay('settlement', player);
       state.buildings[vertex] = { player, type: 'settlement' };
       state.players[player].vp++;
+      grantIslandDiscovery(vertex, player);
       state.recentBotMoves.push({ kind: 'building', id: Number(vertex) });
       messages.push('開拓地');
       continue;
     }
-    const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && roadConnected(i, player));
+    const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && roadConnected(i, player));
     if (roads.length && hasPieceAvailable(player, 'road') && prepareCost(player, 'road')) {
       const chosen = rules.smartRoad ? roads.sort((a, b) => roadValue(b, player) - roadValue(a, player))[0] : roads[Math.floor(Math.random() * roads.length)];
       pay('road', player);
@@ -1662,6 +1790,19 @@ function runBotActions(player) {
       state.recentBotMoves.push({ kind: 'road', id: Number(chosen) });
       messages.push('街道');
       continue;
+    }
+    if (state.expansion === 'seafarers' && hasPieceAvailable(player, 'ship')) {
+      const ships = edges.map((_, i) => i).filter(i => canPlaceShip(i, player));
+      const chosen = ships.sort((a, b) => shipValue(b, player) - shipValue(a, player))[0];
+      // Aggressive bots sail farther on a hunch; cautious ones only build when a settle spot is in reach
+      const threshold = rules.smartRoad ? 1.0 : (rules.bankTrade ? 1.6 : 3.0);
+      if (chosen != null && shipValue(chosen, player) >= threshold && prepareCost(player, 'ship')) {
+        pay('ship', player);
+        state.ships[chosen] = player;
+        state.recentBotMoves.push({ kind: 'ship', id: Number(chosen) });
+        messages.push('船');
+        continue;
+      }
     }
     if (rules.devBuy && state.devDeck.length && prepareCost(player, 'development')) {
       buyDevelopment(player);
@@ -2115,6 +2256,7 @@ $('#playDevBtn').onclick = () => {
   const names = { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占' };
   if (playDevelopment(state.turn, card)) toast(`${names[card]}カードを使いました`);
 };
+$('#moveShipBtn').onclick = () => { if (state.mode === 'moveShip') cancelMoveShip(); else beginMoveShip(); };
 $('#rollBtn').onclick = primaryAction;
 $('#endTurnBtn').onclick = endTurn;
 $('#npcControlBtn').onclick = forceNpcProgress;
@@ -2155,6 +2297,16 @@ function updateStartPlayerFields() {
 }
 $$('input[name="humanCount"]').forEach(input => input.addEventListener('change', updateStartPlayerFields));
 updateStartPlayerFields();
+function seafarersRulesHtml() {
+  return `<div class="rules-seafarers">
+    <p class="rules-expansion-title">🌊 拡張：航海者たち</p>
+    <p><b>⛵ 船：</b>コストは🌲＋🐑。海に面した辺に置けます。自分の<b>沿岸の開拓地・都市</b>か、つながっている<b>船の先端</b>から伸ばします。街道と船は開拓地・都市を経由してつながり、合わせて<b>最長交易路</b>になります。</p>
+    <p><b>🚢 船の移動：</b>1ターンに1回、航路の<b>先端の船</b>を1隻だけ別の場所へ動かせます（そのターンに置いた船・移動済みの船は動かせません）。「⛵ 船を移動」ボタンから行います。</p>
+    <p><b>✨ 金鉱：</b>金鉱に接する開拓地・都市の所有者は、その数字が出ると<b>好きな資源</b>を選んで受け取れます（開拓地1枚・都市2枚）。</p>
+    <p><b>🏝 新しい島の発見：</b>母島以外の島に<b>最初に開拓地</b>を置いた人は<b>＋${ISLAND_BONUS_VP}点</b>。船で海を渡ってたどり着きましょう。</p>
+    <p><b>🏴‍☠️ 海賊：</b>海では盗賊のかわりに<b>海賊</b>が動きます。7を出すか騎士を使うと、盗賊（陸）か海賊（海）のどちらを動かすか選べます。海賊のいる海域では船を建設できず、その海域に面した相手から資源を1枚奪えます。</p>
+  </div>`;
+}
 $('#rulesBtn').onclick = () => {
   $('#modalContent').innerHTML = `<h2>遊び方</h2><div class="rules-list">
     <p><b>🎯 目的：</b>最初に<b>10勝利点</b>に到達したプレイヤーの勝ちです。開拓地は1点、都市は2点。さらに最長交易路・最大騎士力・勝利点カードでも点が入ります。</p>
@@ -2170,8 +2322,9 @@ $('#rulesBtn').onclick = () => {
       <br>騎士を3枚以上使うと<b>最大騎士力＋2点</b>。</p>
     <p><b>⚓ 港と交換：</b>銀行とは通常4:1で交換。港に開拓地・都市があると<b>3:1</b>（どの資源でも）や<b>2:1</b>（指定資源）になります。盤上の港は点線でどのマスと繋がるか示され、保有中の港は銀行パネルに表示されます。手番中は他プレイヤーへ直接交換も提案できます。</p>
     <p><b>🦹 7と盗賊：</b>7が出ると手札8枚以上の人は半分を捨てます。振った人は盗賊を動かし、その土地に接する相手から1枚奪います。盗賊のいる土地は資源を産出しません。</p>
-    <p><b>🛣 最長交易路：</b>連続5本以上の街道を最も長く繋いだ人が<b>＋2点</b>。</p>
-    <p><b>🤖 NPCの強さ：</b>開始画面で「やさしい／ふつう／強い」を選べます。強いほど街道を賢く伸ばし、発展カードを積極的に使います。</p>
+    <p><b>🛣 最長交易路：</b>連続5本以上の街道${state.expansion === 'seafarers' ? '・船' : ''}を最も長く繋いだ人が<b>＋2点</b>。</p>
+    ${state.expansion === 'seafarers' ? seafarersRulesHtml() : ''}
+    <p><b>🤖 NPCの強さ：</b>開始画面で「やさしい／ふつう／強い」を選べます。強いほど街道を賢く伸ばし、発展カードを積極的に使います${state.expansion === 'seafarers' ? '（船で新しい島も目指します）' : ''}。</p>
     <p><b>🔒 勝利点の表示：</b>あなたの合計点だけが表示され、他プレイヤーの点数は伏せられます（ゲーム終了時に公開）。</p>
   </div>`;
   $('#modal').showModal();
