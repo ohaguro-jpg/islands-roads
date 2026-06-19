@@ -113,6 +113,12 @@ function scheduleRoomBot(room) {
       } else if (game.stage === 'roll') {
         game.botActions = 0;
         act(room, player, 'roll');
+      } else if (game.stage === 'robber') {
+        const candidates = game.tiles.filter(t => t.id !== game.robberTile);
+        const good = candidates.find(t => robberVictims(game, t.id, player).length);
+        act(room, player, 'moveRobber', { tile: (good || candidates[crypto.randomInt(candidates.length)]).id });
+      } else if (game.stage === 'steal') {
+        act(room, player, 'steal', { victim: game.stealOptions[0] });
       } else if (game.stage === 'build') {
         game.botActions = (game.botActions || 0) + 1;
         const city = Object.entries(game.buildings).find(([, piece]) => piece.player === player && piece.type === 'settlement');
@@ -168,20 +174,24 @@ function finishSetupPair(room) {
   }
 }
 
+function handTotal(hand) { return Object.values(hand).reduce((a, b) => a + b, 0); }
+function randomResourceFrom(hand) { const available = RESOURCES.filter(resource => hand[resource] > 0); return available.length ? available[crypto.randomInt(available.length)] : null; }
+function robberVictims(game, tile, roller) {
+  const set = new Set();
+  game.tiles[tile].vertices.forEach(vertex => { const building = game.buildings[vertex]; if (building && building.player !== roller && handTotal(game.hands[building.player]) > 0) set.add(building.player); });
+  return [...set];
+}
+function stealCard(game, robber, victim) { const resource = randomResourceFrom(game.hands[victim]); if (resource) { game.hands[victim][resource]--; game.hands[robber][resource]++; } }
+// 7が出たとき: NPCは即時に半分捨て、人間は捨てる枚数を選ぶ。全員済んだら手番者が盗賊を動かす段階へ。
+function startSeven(room) {
+  const game = room.game;
+  room.players.forEach((p, i) => { const hand = game.hands[i]; const total = handTotal(hand); if (p.isBot && total > 7) for (let k = 0; k < Math.floor(total / 2); k++) { const r = randomResourceFrom(hand); if (r) { hand[r]--; game.bank[r]++; } } });
+  game.discard = {};
+  room.players.forEach((p, i) => { const total = handTotal(game.hands[i]); if (!p.isBot && total > 7) game.discard[i] = Math.floor(total / 2); });
+  if (Object.keys(game.discard).length) { game.stage = 'discard'; } else { game.discard = null; game.stage = 'robber'; }
+}
+
 function distribute(game, sum) {
-  if (sum === 7) {
-    game.hands.forEach(hand => {
-      const total = Object.values(hand).reduce((a, b) => a + b, 0);
-      for (let i = 0; i < Math.floor(total > 7 ? total / 2 : 0); i++) {
-        const available = RESOURCES.filter(resource => hand[resource] > 0);
-        const resource = available[crypto.randomInt(available.length)];
-        hand[resource]--; game.bank[resource]++;
-      }
-    });
-    const options = game.tiles.filter(tile => tile.id !== game.robberTile);
-    game.robberTile = options[crypto.randomInt(options.length)].id;
-    return;
-  }
   const claims = [];
   Object.entries(game.buildings).forEach(([vertex, building]) => game.vertices[vertex].tiles.forEach(tileId => {
     const tile = game.tiles[tileId];
@@ -220,7 +230,29 @@ function act(room, player, type, payload = {}) {
     if (setup) finishSetupPair(room);
   } else if (type === 'roll') {
     if (game.turn !== player || game.stage !== 'roll' || game.rolled) throw new Error('今はダイスを振れません');
-    const a = crypto.randomInt(1, 7), b = crypto.randomInt(1, 7); game.dice = [a, b]; game.rolled = true; distribute(game, a + b); game.stage = 'build';
+    const a = crypto.randomInt(1, 7), b = crypto.randomInt(1, 7); game.dice = [a, b]; game.rolled = true;
+    if (a + b === 7) startSeven(room); else { distribute(game, a + b); game.stage = 'build'; }
+  } else if (type === 'discard') {
+    if (game.stage !== 'discard' || !game.discard || game.discard[player] == null) throw new Error('今は手札を捨てる必要はありません');
+    const required = game.discard[player], hand = game.hands[player], sel = payload.resources || {};
+    let total = 0; for (const r of RESOURCES) { const n = Math.max(0, Number(sel[r]) || 0); if (n > hand[r]) throw new Error('その枚数は持っていません'); total += n; }
+    if (total !== required) throw new Error(`合計${required}枚を選んでください`);
+    for (const r of RESOURCES) { const n = Math.max(0, Number(sel[r]) || 0); hand[r] -= n; game.bank[r] += n; }
+    delete game.discard[player];
+    if (Object.keys(game.discard).length === 0) { game.discard = null; game.stage = 'robber'; }
+  } else if (type === 'moveRobber') {
+    if (game.turn !== player || game.stage !== 'robber') throw new Error('今は盗賊を動かせません');
+    const tile = Number(payload.tile);
+    if (!game.tiles[tile] || tile === game.robberTile) throw new Error('別の土地を選んでください');
+    game.robberTile = tile;
+    const victims = robberVictims(game, tile, player);
+    if (victims.length <= 1) { if (victims.length === 1) stealCard(game, player, victims[0]); game.stealOptions = null; game.stage = 'build'; }
+    else { game.stealOptions = victims; game.stage = 'steal'; }
+  } else if (type === 'steal') {
+    if (game.turn !== player || game.stage !== 'steal' || !game.stealOptions) throw new Error('今は相手を選べません');
+    const victim = Number(payload.victim);
+    if (!game.stealOptions.includes(victim)) throw new Error('その相手は選べません');
+    stealCard(game, player, victim); game.stealOptions = null; game.stage = 'build';
   } else if (type === 'buildCity') {
     const building = game.buildings[payload.vertex];
     if (game.turn !== player || game.stage !== 'build' || !building || building.player !== player || building.type !== 'settlement') throw new Error('都市にできません');
@@ -253,7 +285,7 @@ function publicState(room, playerId) {
   const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
-  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: game.vp, winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
+  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: game.vp, winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
 }
 function findIdentity(room, authToken) { return authToken ? room.players.find(player => player.token === authToken && !player.isBot) : null; }
 function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); }

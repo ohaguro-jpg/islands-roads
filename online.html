@@ -51,6 +51,20 @@
       </div>
     </section>
   </main>
+  <div class="modal-overlay" id="discardOverlay" hidden>
+    <div class="modal-card">
+      <h3>7! 手札を捨てる</h3>
+      <p id="discardSub"></p>
+      <div class="discard-grid" id="discardGrid"></div>
+      <button id="discardConfirmBtn">捨てる</button>
+    </div>
+  </div>
+  <div class="modal-overlay" id="stealOverlay" hidden>
+    <div class="modal-card">
+      <h3>誰から奪う？</h3>
+      <div class="steal-grid" id="stealGrid"></div>
+    </div>
+  </div>
   <div class="dice-overlay" id="diceOverlay" aria-hidden="true">
     <div class="dice-overlay-card">
       <small id="diceOverlayPlayer">DICE ROLL</small>

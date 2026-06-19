@@ -65,3 +65,23 @@
   #onlineBoardSvg{position:absolute;inset:0;width:100%;height:100%;margin:0;transform:none}
   .actions{position:static;transform:none;width:100%;flex-wrap:wrap;justify-content:center}
 }
+
+/* ===== Robber targeting + 7-discard / steal modals ===== */
+.robber-target{fill:#f8d05c40;stroke:#d9a838;stroke-width:3;cursor:pointer;transition:fill .12s}
+.robber-target:hover{fill:#f8d05c88}
+.modal-overlay{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;background:#102e28cc;backdrop-filter:blur(6px);padding:20px}
+.modal-overlay[hidden]{display:none}
+.modal-card{width:min(440px,100%);background:#faf7ec;border-radius:18px;padding:24px;box-shadow:0 30px 80px #06171399;text-align:center}
+.modal-card h3{margin:0 0 6px;font-family:serif;font-size:22px;color:var(--ink)}
+.modal-card>p{margin:0 0 16px;color:#74817c;font-size:13px}
+.discard-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px}
+.discard-cell{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:24px}
+.discard-cell input{width:100%;padding:7px 2px;border:1px solid var(--line);border-radius:7px;text-align:center;font-size:16px;font-weight:800}
+.discard-cell small{font-size:9px;color:#8a8577;font-weight:700}
+#discardConfirmBtn{width:100%;padding:12px;border:0;border-radius:9px;background:var(--ink);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+#discardConfirmBtn:disabled{opacity:.4;cursor:not-allowed}
+.steal-grid{display:flex;flex-direction:column;gap:8px}
+.steal-grid button{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-size:15px;font-weight:700}
+.steal-grid button:hover{background:#f1ede1;border-color:#b88b2d}
+.steal-grid i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.steal-grid small{margin-left:auto;color:#8a8577;font-weight:700}
