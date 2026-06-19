@@ -124,3 +124,17 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 .online-switch:hover{background:#eef4f5}
 /* "Online" button inside the in-game corner controls */
 .corner-controls .cc-online{background:var(--blue);color:#fff;text-decoration:none;display:block}
+/* ===== Seafarers expansion ===== */
+#board[data-expansion="seafarers"] .hex{width:104px;height:90px}
+#board[data-expansion="seafarers"] .hex.sea{background:linear-gradient(145deg,#4a8ea4 0%,#3a7890 50%,#2d6478 100%);cursor:default;pointer-events:none;filter:none}
+#board[data-expansion="seafarers"] .hex.sea:hover{transform:none}
+#board[data-expansion="seafarers"] .hex.sea.robber-target{cursor:pointer;pointer-events:auto;filter:drop-shadow(0 0 8px #5bc8f588)}
+#board[data-expansion="seafarers"] .hex.sea.robber-pending{cursor:pointer;pointer-events:auto;filter:drop-shadow(0 0 16px #5bc8f5) brightness(1.2)}
+#board[data-expansion="seafarers"] .hex.sea::before{background:radial-gradient(ellipse at 40% 35%,#6db8cf55,transparent);opacity:.7}
+#board[data-expansion="seafarers"] .hex.sea::after{background-image:repeating-linear-gradient(90deg,transparent 0 12px,#ffffff18 13px 14px)}
+.hex.gold{background:linear-gradient(135deg,#e8c520 0%,#d4a010 50%,#bf8c08 100%)}
+.persistent-piece.ship-piece{position:absolute;height:6px;border-radius:4px;background:var(--piece-color);transform-origin:0 50%;z-index:7;border:2px dashed rgba(255,255,255,.8);box-shadow:0 1px 4px #0004}
+.pirate-token{font-size:22px;color:#1a4a5e}
+#board[data-expansion="seafarers"] .hex.sea .harbor{display:none}
+#shipBuildBtn{display:none}
+.expansion-seafarers #shipBuildBtn{display:grid}

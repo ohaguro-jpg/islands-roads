@@ -8,14 +8,22 @@ const RESOURCES = {
 const TILE_TYPES = [...Array(4).fill('forest'), ...Array(3).fill('hills'), ...Array(4).fill('pasture'), ...Array(4).fill('fields'), ...Array(3).fill('mountains'), 'desert'];
 const DEFAULT_TYPES = ['mountains', 'pasture', 'forest', 'fields', 'hills', 'pasture', 'mountains', 'forest', 'fields', 'desert', 'fields', 'forest', 'mountains', 'forest', 'pasture', 'hills', 'fields', 'pasture', 'hills'];
 const DEFAULT_NUMBERS = [4, 9, 6, 4, 12, 10, 11, 10, 8, null, 3, 2, 9, 3, 8, 11, 6, 5, 5];
-const TYPE_DATA = { forest: { res: 'wood', icon: '🌲' }, hills: { res: 'brick', icon: '🧱' }, pasture: { res: 'sheep', icon: '🐑' }, fields: { res: 'wheat', icon: '🌾' }, mountains: { res: 'ore', icon: '⛏' }, desert: { res: null, icon: '☀' } };
+const TYPE_DATA = { forest: { res: 'wood', icon: '🌲' }, hills: { res: 'brick', icon: '🧱' }, pasture: { res: 'sheep', icon: '🐑' }, fields: { res: 'wheat', icon: '🌾' }, mountains: { res: 'ore', icon: '⛏' }, desert: { res: null, icon: '☀' }, sea: { res: null, icon: '🌊' }, gold: { res: null, icon: '✨' } };
 const NUMBERS = [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11];
 const COLORS = ['#c95642', '#3d7181', '#d9a838', '#577b59'];
 const NAMES = ['あなた', 'ミナト', 'アオイ', 'ハル'];
 const NPC_NAMES = ['ミナト', 'アオイ', 'ハル', 'カイ'];
-const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 } };
-const PIECE_LIMITS = { road: 15, settlement: 5, city: 4 };
+const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 }, ship: { wood: 1, sheep: 1 } };
+const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 };
 const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
+// Seafarers expansion constants
+const SEA_HEX_SIZE = 52;
+const ISLAND_BONUS_VP = 1;
+const SEAFARERS_HOME = new Set(['-1,-1','0,-1','1,-1','-1,0','0,0','1,0','-1,1','0,1','1,1']);
+const SEAFARERS_DISC1 = new Set(['1,-3','2,-3','3,-3','3,-2']);
+const SEAFARERS_DISC2 = new Set(['-3,2','-3,3','-2,3']);
+const SEAFARERS_TILE_TYPES = ['fields','hills','forest','pasture','mountains','fields','pasture','forest','desert','mountains','hills','forest','gold','pasture','fields','gold'];
+const SEAFARERS_TILE_NUMBERS = [9,6,4,3,12,10,8,5,null,2,11,8,5,9,6,10];
 let state;
 let vertices = [];
 let edges = [];
@@ -217,7 +225,7 @@ function newGame() {
   for (let i = 0; i < total; i++) {
     const bot = i >= humanCount;
     const name = bot ? (NPC_NAMES[i - humanCount] || `NPC${i - humanCount + 1}`) : ((humanNames[i] || '').trim() || `プレイヤー${i + 1}`);
-    players.push({ name, color: COLORS[i % COLORS.length], bot, vp: 0, resources: emptyResources(), dev: [], newDev: [], playedKnights: 0, devPlayed: false });
+    players.push({ name, color: COLORS[i % COLORS.length], bot, vp: 0, resources: emptyResources(), dev: [], newDev: [], playedKnights: 0, devPlayed: false, islandVP: 0 });
   }
   const base = shuffle(players.map((_, i) => i));
   const setupOrder = [...base, ...[...base].reverse()];
@@ -226,9 +234,10 @@ function newGame() {
     turn: setupOrder[0], setupOrder, round: 1, rolled: false, mode: 'setup-settlement',
     targetScore: gameConfig.targetScore || 10, humanCount,
     players,
-    buildings: {}, roads: {}, harbors: {}, bank: { wood: 19, brick: 19, wheat: 19, sheep: 19, ore: 19 }, robberTile: null, pendingRobberTile: null, freeRoads: 0, recentBotMoves: [], longestRoadOwner: null, largestArmyOwner: null,
+    buildings: {}, roads: {}, harbors: {}, ships: {}, bank: { wood: 19, brick: 19, wheat: 19, sheep: 19, ore: 19 }, robberTile: null, pendingRobberTile: null, pirateTile: null, pendingPirateTile: null, freeRoads: 0, recentBotMoves: [], longestRoadOwner: null, largestArmyOwner: null,
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
-    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false
+    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false,
+    islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null
   };
   scale = .82;
   buildBoard();
@@ -259,6 +268,7 @@ function startNpcHeartbeat() {
 }
 
 function buildBoard() {
+  if (gameConfig.expansion === 'seafarers') { buildSeafarersBoard(); return; }
   const board = $('#board');
   board.innerHTML = '<div class="sea-ring"></div>';
   vertices = [];
@@ -379,6 +389,140 @@ function buildBoard() {
   board.append(robber);
 }
 
+function buildSeafarersBoard() {
+  const board = $('#board');
+  board.innerHTML = '';
+  board.dataset.expansion = 'seafarers';
+  vertices = [];
+  edges = [];
+  tiles = [];
+  const S = SEA_HEX_SIZE;
+  const HS = S * 1.5, VS = S * Math.sqrt(3), CX = 350, CY = 335;
+  const allCoords = [];
+  for (let r = -3; r <= 3; r++) {
+    for (let q = Math.max(-3, -r - 3); q <= Math.min(3, -r + 3); q++) allCoords.push({ q, r });
+  }
+  const landTypes = gameConfig.boardMode === 'default' ? [...SEAFARERS_TILE_TYPES] : shuffle([...SEAFARERS_TILE_TYPES]);
+  const landNumbers = [...SEAFARERS_TILE_NUMBERS];
+  let landIdx = 0;
+  allCoords.forEach((coord, i) => {
+    const key = `${coord.q},${coord.r}`;
+    const islandId = SEAFARERS_HOME.has(key) ? 0 : SEAFARERS_DISC1.has(key) ? 1 : SEAFARERS_DISC2.has(key) ? 2 : null;
+    const isSea = islandId === null;
+    const x = Math.round(CX + HS * coord.q);
+    const y = Math.round(CY + VS * (coord.r + coord.q / 2));
+    const type = isSea ? 'sea' : landTypes[landIdx];
+    const num = isSea ? null : landNumbers[landIdx];
+    if (!isSea) landIdx++;
+    tiles.push({ x, y, type, num, vertices: [], island: islandId, coord });
+    if (!isSea && type === 'desert') state.robberTile = i;
+    const el = document.createElement('div');
+    el.className = `hex ${type}`;
+    el.dataset.tile = i;
+    el.style.left = `${x - S}px`;
+    el.style.top = `${y - Math.round(S * Math.sqrt(3) / 2)}px`;
+    el.style.width = `${S * 2}px`;
+    el.style.height = `${Math.round(S * Math.sqrt(3))}px`;
+    if (!isSea) {
+      el.innerHTML = `<span class="tile-icon" style="font-size:24px">${TYPE_DATA[type].icon}</span>${num ? `<span class="token ${num === 6 || num === 8 ? 'hot' : ''}" style="width:28px;height:28px;font-size:13px">${num}<small>${'•'.repeat(6 - Math.abs(7 - num))}</small></span>` : ''}`;
+      el.onclick = () => placeRobber(i);
+    }
+    board.append(el);
+  });
+  const vertexMap = new Map();
+  tiles.forEach((tile, tileIndex) => {
+    for (let corner = 0; corner < 6; corner++) {
+      const angle = Math.PI / 3 * corner;
+      const x = Math.round(tile.x + S * Math.cos(angle));
+      const y = Math.round(tile.y + S * Math.sin(angle));
+      const key = `${x},${y}`;
+      let vi = vertexMap.get(key);
+      if (vi == null) { vi = vertices.length; vertexMap.set(key, vi); vertices.push({ x, y, tiles: [] }); }
+      vertices[vi].tiles.push(tileIndex);
+      tile.vertices.push(vi);
+    }
+  });
+  const edgeMap = new Map();
+  tiles.forEach(tile => {
+    for (let corner = 0; corner < 6; corner++) {
+      const a = tile.vertices[corner], b = tile.vertices[(corner + 1) % 6];
+      const key = [a, b].sort((x, y) => x - y).join('-');
+      if (!edgeMap.has(key)) { edgeMap.set(key, edges.length); edges.push({ a, b }); }
+    }
+  });
+  const LAND_TYPES = new Set(['forest','hills','pasture','fields','mountains','desert','gold']);
+  const isLandVertex = vi => vertices[vi].tiles.some(t => LAND_TYPES.has(tiles[t].type));
+  edges.forEach((edge, i) => {
+    const a = vertices[edge.a], b = vertices[edge.b];
+    const el = document.createElement('div');
+    el.className = 'edge';
+    el.dataset.edge = i;
+    el.style.left = `${a.x}px`;
+    el.style.top = `${a.y - 4}px`;
+    el.style.width = `${Math.hypot(b.x - a.x, b.y - a.y)}px`;
+    el.style.transform = `rotate(${Math.atan2(b.y - a.y, b.x - a.x)}rad)`;
+    el.onclick = () => { placeRoad(i); placeShip(i); };
+    board.append(el);
+  });
+  vertices.forEach((vertex, i) => {
+    if (!isLandVertex(i)) return;
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.node = i;
+    el.style.left = `${vertex.x}px`;
+    el.style.top = `${vertex.y}px`;
+    el.onclick = () => placeBuilding(i);
+    board.append(el);
+  });
+  // Harbors on coastal edges (land↔sea boundary)
+  const coastalEdges = edges.map((edge, i) => {
+    const shared = vertices[edge.a].tiles.filter(t => vertices[edge.b].tiles.includes(t));
+    const types = shared.map(t => tiles[t].type);
+    const hasLand = types.some(t => LAND_TYPES.has(t));
+    const hasSea = types.some(t => t === 'sea');
+    if (!hasLand || !hasSea) return null;
+    const mx = (vertices[edge.a].x + vertices[edge.b].x) / 2;
+    const my = (vertices[edge.a].y + vertices[edge.b].y) / 2;
+    return { i, edge, angle: Math.atan2(my - CY, mx - CX) };
+  }).filter(Boolean).sort((a, b) => a.angle - b.angle);
+  const harborTypes = gameConfig.boardMode === 'default'
+    ? [null, 'wood', null, 'brick', null, 'wheat', 'sheep', null, 'ore']
+    : shuffle([null, null, null, null, 'wood', 'brick', 'wheat', 'sheep', 'ore']);
+  const usedHV = new Set();
+  for (let i = 0; i < Math.min(9, coastalEdges.length); i++) {
+    const target = Math.floor(i * coastalEdges.length / Math.min(9, coastalEdges.length));
+    let offset = 0;
+    while (offset < coastalEdges.length && [coastalEdges[(target + offset) % coastalEdges.length].edge.a, coastalEdges[(target + offset) % coastalEdges.length].edge.b].some(v => usedHV.has(v))) offset++;
+    const { edge } = coastalEdges[(target + offset) % coastalEdges.length];
+    usedHV.add(edge.a); usedHV.add(edge.b);
+    state.harbors[edge.a] = harborTypes[i];
+    state.harbors[edge.b] = harborTypes[i];
+    const midpoint = { x: (vertices[edge.a].x + vertices[edge.b].x) / 2, y: (vertices[edge.a].y + vertices[edge.b].y) / 2 };
+    const len = Math.hypot(midpoint.x - CX, midpoint.y - CY) || 1;
+    const cx = midpoint.x + (midpoint.x - CX) / len * 36;
+    const cy = midpoint.y + (midpoint.y - CY) / len * 36;
+    [edge.a, edge.b].forEach(v => {
+      const dock = document.createElement('div');
+      dock.className = 'harbor-dock';
+      dock.style.left = `${cx}px`; dock.style.top = `${cy}px`;
+      dock.style.width = `${Math.hypot(vertices[v].x - cx, vertices[v].y - cy)}px`;
+      dock.style.transform = `rotate(${Math.atan2(vertices[v].y - cy, vertices[v].x - cx)}rad)`;
+      board.append(dock);
+    });
+    const marker = document.createElement('div');
+    marker.className = 'harbor';
+    marker.style.left = `${cx - 25}px`; marker.style.top = `${cy - 25}px`;
+    marker.textContent = harborTypes[i] ? `2${RESOURCES[harborTypes[i]].icon}` : '3:1';
+    board.append(marker);
+  }
+  const robber = document.createElement('div');
+  robber.id = 'robber'; robber.className = 'robber'; robber.textContent = '♟';
+  board.append(robber);
+  const pirate = document.createElement('div');
+  pirate.id = 'pirate'; pirate.className = 'robber pirate-token'; pirate.textContent = '⛵';
+  board.append(pirate);
+}
+
 function renderPersistentPieces() {
   $$('.persistent-piece').forEach(element => element.remove());
   const board = $('#board');
@@ -391,6 +535,21 @@ function renderPersistentPieces() {
     const b = vertices[edge.b];
     const piece = document.createElement('div');
     piece.className = `persistent-piece road-piece${recentRoads.has(Number(edgeIndex)) ? ' recent-move' : ''}`;
+    piece.dataset.edge = edgeIndex;
+    piece.dataset.player = player;
+    piece.style.left = `${a.x}px`;
+    piece.style.top = `${a.y - 6}px`;
+    piece.style.width = `${Math.hypot(b.x - a.x, b.y - a.y)}px`;
+    piece.style.transform = `rotate(${Math.atan2(b.y - a.y, b.x - a.x)}rad)`;
+    piece.style.setProperty('--piece-color', state.players[player].color);
+    board.append(piece);
+  });
+  Object.entries(state.ships || {}).forEach(([edgeIndex, player]) => {
+    const edge = edges[Number(edgeIndex)];
+    if (!edge || !state.players[player]) return;
+    const a = vertices[edge.a], b = vertices[edge.b];
+    const piece = document.createElement('div');
+    piece.className = 'persistent-piece ship-piece';
     piece.dataset.edge = edgeIndex;
     piece.dataset.player = player;
     piece.style.left = `${a.x}px`;
@@ -418,6 +577,7 @@ function render() {
   const player = state.players[state.turn];
   const setup = state.phase === 'setup';
   $('#board').classList.toggle('setup-mode', setup);
+  if (document.body) document.body.classList.toggle('expansion-seafarers', state.expansion === 'seafarers');
   $('#turnName').textContent = player.name;
   $('#turnDot').style.background = player.color;
   $('#turnScore').textContent = setup ? `${Math.floor(state.setupStep / 4) + 1}個目を配置` : (state.gameOver ? `${totalVP(state.turn)} VP` : `最低 ${visibleVP(state.turn)} VP`);
@@ -485,14 +645,31 @@ function render() {
     }
     robber.classList.toggle('pending', state.pendingRobberTile != null);
   }
+  const pirateTok = $('#pirate');
+  if (pirateTok) {
+    const displayTile = state.pendingPirateTile ?? state.pirateTile;
+    pirateTok.hidden = displayTile == null;
+    if (displayTile != null) {
+      pirateTok.style.left = `${tiles[displayTile].x - 14}px`;
+      pirateTok.style.top = `${tiles[displayTile].y - 22}px`;
+    }
+    pirateTok.classList.toggle('pending', state.pendingPirateTile != null);
+  }
   const confirmOverlay = $('#robberConfirmOverlay');
   if (confirmOverlay) {
     const show = state.mode === 'robber' && state.pendingRobberTile != null;
     confirmOverlay.style.display = show ? 'flex' : 'none';
   }
+  const pirateOverlay = $('#pirateConfirmOverlay');
+  if (pirateOverlay) {
+    const show = state.mode === 'pirate' && state.pendingPirateTile != null;
+    pirateOverlay.style.display = show ? 'flex' : 'none';
+  }
   $$('.build-card').forEach(button => {
-    if (setup) button.disabled = botTurnNow || button.dataset.build !== state.setupPart;
-    else button.disabled = state.resolvingSeven || botTurnNow || !state.rolled || !canAfford(button.dataset.build, state.turn) || !hasPieceAvailable(state.turn, button.dataset.build);
+    const buildType = button.dataset.build;
+    if (setup) button.disabled = botTurnNow || buildType !== state.setupPart;
+    else if (buildType === 'ship') button.disabled = state.resolvingSeven || botTurnNow || !state.rolled || !canAfford('ship', state.turn) || !hasPieceAvailable(state.turn, 'ship') || state.expansion !== 'seafarers';
+    else button.disabled = state.resolvingSeven || botTurnNow || !state.rolled || !canAfford(buildType, state.turn) || !hasPieceAvailable(state.turn, buildType);
   });
   const setupSelectionReady = state.setupPart === 'settlement' ? state.pendingSetupVertex != null : state.pendingSetupEdge != null;
   $('#rollBtn').disabled = setup ? botTurnNow || !setupSelectionReady : state.rolled || botTurnNow;
@@ -526,6 +703,10 @@ function adjacentNodes(vertex) {
 }
 
 function canPlaceInitialSettlement(vertex) {
+  if (state.expansion === 'seafarers') {
+    const LAND = new Set(['forest','hills','pasture','fields','mountains','desert','gold']);
+    if (!vertices[vertex].tiles.some(t => LAND.has(tiles[t].type))) return false;
+  }
   return !state.buildings[vertex] && !adjacentNodes(vertex).some(neighbor => state.buildings[neighbor]);
 }
 
@@ -572,7 +753,8 @@ function maritimeRate(player, resource) {
 }
 
 function visibleVP(player) {
-  return state.players[player].vp + (state.longestRoadOwner === player ? 2 : 0) + (state.largestArmyOwner === player ? 2 : 0);
+  const islandVP = state.players[player].islandVP || 0;
+  return state.players[player].vp + (state.longestRoadOwner === player ? 2 : 0) + (state.largestArmyOwner === player ? 2 : 0) + islandVP;
 }
 
 function vpBreakdown(player) {
@@ -584,6 +766,7 @@ function vpBreakdown(player) {
   if (cities) parts.push(`都市×${cities}`);
   if (state.longestRoadOwner === player) parts.push('最長交易路+2');
   if (state.largestArmyOwner === player) parts.push('最大騎士力+2');
+  if (p.islandVP) parts.push(`新島発見+${p.islandVP}`);
   const secretCards = [...p.dev, ...p.newDev].filter(c => c === 'victory').length;
   if (secretCards) parts.push(`勝利点カード×${secretCards}`);
   return parts.join('・');
@@ -626,8 +809,17 @@ function updateAvailable() {
     });
     return;
   }
+  if (state.mode === 'pirate') {
+    $$('.hex').filter(el => tiles[+el.dataset.tile]?.type === 'sea' && +el.dataset.tile !== state.pirateTile).forEach(el => el.classList.add('robber-target'));
+    if (state.pendingPirateTile != null) {
+      const el = $$('.hex').find(e => +e.dataset.tile === state.pendingPirateTile);
+      if (el) el.classList.add('robber-pending');
+    }
+    return;
+  }
   if (!state.mode || currentIsBot()) return;
-  if (state.mode === 'road') $$('.edge').filter(element => state.roads[element.dataset.edge] === undefined && roadConnected(+element.dataset.edge, actor)).forEach(element => element.classList.add('available'));
+  if (state.mode === 'road') $$('.edge').filter(element => state.roads[element.dataset.edge] === undefined && !isSeaEdge(+element.dataset.edge) && roadConnected(+element.dataset.edge, actor)).forEach(element => element.classList.add('available'));
+  if (state.mode === 'ship') $$('.edge').filter(element => canPlaceShip(+element.dataset.edge, actor)).forEach(element => element.classList.add('available'));
   if (state.mode === 'settlement') $$('.node').filter(element => canSettle(+element.dataset.node, actor)).forEach(element => element.classList.add('available'));
   if (state.mode === 'city') $$('.node').filter(element => state.buildings[element.dataset.node]?.player === actor && state.buildings[element.dataset.node].type === 'settlement').forEach(element => element.classList.add('available', 'upgrade-target'));
 }
@@ -684,9 +876,69 @@ function roadConnected(edgeIndex, player) {
   });
 }
 
+function isSeaEdge(edgeIndex) {
+  const edge = edges[edgeIndex];
+  const shared = vertices[edge.a].tiles.filter(t => vertices[edge.b].tiles.includes(t));
+  return shared.some(t => tiles[t].type === 'sea');
+}
+
+function shipConnected(edgeIndex, player) {
+  const edge = edges[edgeIndex];
+  return [edge.a, edge.b].some(vertex => {
+    const building = state.buildings[vertex];
+    if (building && building.player !== player) return false;
+    if (building?.player === player) return true;
+    return edges.some((item, i) => (item.a === vertex || item.b === vertex) && state.ships[i] === player);
+  });
+}
+
+function canPlaceShip(edgeIndex, player) {
+  if (state.ships[edgeIndex] !== undefined || state.roads[edgeIndex] !== undefined) return false;
+  if (!isSeaEdge(edgeIndex)) return false;
+  // Pirate blocks ship building on adjacent sea tiles
+  if (state.pirateTile != null) {
+    const edge = edges[edgeIndex];
+    const adjacentTiles = vertices[edge.a].tiles.filter(t => vertices[edge.b].tiles.includes(t));
+    if (adjacentTiles.includes(state.pirateTile)) return false;
+  }
+  return shipConnected(edgeIndex, player);
+}
+
+function placeShip(edgeIndex) {
+  const me = state.turn;
+  if (currentIsBot() || state.mode !== 'ship' || !hasPieceAvailable(me, 'ship') || !canPlaceShip(edgeIndex, me)) return;
+  pay('ship', me);
+  state.ships[edgeIndex] = me;
+  state.mode = null;
+  updateAwards();
+  toast('船を建設しました');
+  soundEffect('build');
+  render();
+  checkWin(me);
+}
+
+function countShips(player) {
+  return Object.values(state.ships).filter(p => p === player).length;
+}
+
 function canSettle(vertex, player) {
   if (!canPlaceInitialSettlement(vertex)) return false;
-  return edges.some((edge, i) => (edge.a === vertex || edge.b === vertex) && state.roads[i] === player);
+  return edges.some((edge, i) =>
+    (edge.a === vertex || edge.b === vertex) &&
+    (state.roads[i] === player || state.ships[i] === player)
+  );
+}
+
+function grantIslandDiscovery(vertex, player) {
+  if (state.expansion !== 'seafarers') return;
+  vertices[vertex].tiles.forEach(tileIndex => {
+    const island = tiles[tileIndex]?.island;
+    if (island == null || island === 0) return;
+    if (state.islandSettlers[island] != null) return;
+    state.islandSettlers[island] = player;
+    state.players[player].islandVP = (state.players[player].islandVP || 0) + ISLAND_BONUS_VP;
+    toast(`✨ ${state.players[player].name}が新しい島を発見！ +${ISLAND_BONUS_VP}VP`);
+  });
 }
 
 function placeBuilding(vertex) {
@@ -703,6 +955,7 @@ function placeBuilding(vertex) {
     pay('settlement', me);
     state.buildings[vertex] = { player: me, type: 'settlement' };
     state.players[me].vp++;
+    grantIslandDiscovery(vertex, me);
     state.mode = null;
     toast('開拓地を建設しました');
     soundEffect('build');
@@ -918,13 +1171,18 @@ function distributeRoll(a, b) {
   if (sum === 7) return resolveSeven(state.turn);
   let gained = 0;
   const claims = Object.fromEntries(Object.keys(RESOURCES).map(resource => [resource, []]));
+  const goldClaims = []; // [{player, amount}] for gold tiles
   Object.entries(state.buildings).forEach(([vertex, building]) => {
     vertices[vertex].tiles.forEach(tileIndex => {
       const tile = tiles[tileIndex];
-      const resource = TYPE_DATA[tile.type].res;
-      if (tileIndex !== state.robberTile && tile.num === sum && resource) {
+      if (tileIndex === state.robberTile || tile.num !== sum) return;
+      if (tile.type === 'gold') {
         const amount = building.type === 'city' ? 2 : 1;
-        claims[resource].push({ player: building.player, amount });
+        goldClaims.push({ player: building.player, amount });
+        if (building.player === state.turn) gained += amount;
+      } else {
+        const resource = TYPE_DATA[tile.type].res;
+        if (resource) claims[resource].push({ player: building.player, amount: building.type === 'city' ? 2 : 1 });
       }
     });
   });
@@ -942,7 +1200,21 @@ function distributeRoll(a, b) {
       state.bank[resource] = 0;
     }
   });
+  if (goldClaims.length) {
+    // NPC auto-picks most needed resource; humans queue for dialog
+    goldClaims.forEach(({ player, amount }) => {
+      if (state.players[player].bot) {
+        for (let k = 0; k < amount; k++) {
+          const res = Object.keys(RESOURCES).sort((a, b) => npcResourceNeed(player, b) - npcResourceNeed(player, a))[0] || 'wood';
+          if (state.bank[res] > 0) { state.players[player].resources[res]++; state.bank[res]--; }
+        }
+      } else {
+        state.goldPickQueue.push({ player, amount });
+      }
+    });
+  }
   toast(gained ? `${sum}！ 資源を ${gained} 枚獲得` : `${sum}！ 島から資源が産出しました`);
+  if (state.goldPickQueue && state.goldPickQueue.length) processGoldPickQueue();
 }
 
 function randomOwnedResource(player) {
@@ -985,13 +1257,114 @@ function processDiscardQueue() {
 function finishSevenRobber() {
   const roller = state.sevenRoller;
   if (state.players[roller].bot) {
-    moveRobberAndSteal(roller);
+    // NPCs in Seafarers move pirate if they have ships on sea
+    if (state.expansion === 'seafarers' && Object.values(state.ships).includes(roller)) {
+      movePirateAndSteal(roller);
+    } else {
+      moveRobberAndSteal(roller);
+    }
     state.resolvingSeven = false;
     render();
     toast(`7！ ${state.players[roller].name}が盗賊を動かしました`);
+  } else if (state.expansion === 'seafarers') {
+    beginSevenChoice();
   } else {
     beginRobberChoice();
   }
+}
+
+function beginSevenChoice() {
+  state.resolvingSeven = true;
+  const hasSea = tiles.some(t => t.type === 'sea');
+  if (!hasSea) { beginRobberChoice(); return; }
+  $('#modalClose').hidden = true;
+  $('#modalContent').innerHTML = `<h2>7！ 盗賊か海賊を動かす</h2><p>どちらを移動しますか？</p>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button style="flex:1;padding:12px;border:1px solid var(--line);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700" id="chooseLandRobber">♟ 盗賊（陸）</button>
+      <button style="flex:1;padding:12px;border:1px solid var(--line);border-radius:8px;background:#e8f4f9;cursor:pointer;font-size:14px;font-weight:700" id="chooseSeaPirate">⛵ 海賊（海）</button>
+    </div>`;
+  $('#modal').showModal();
+  $('#chooseLandRobber').onclick = () => { $('#modal').close(); $('#modalClose').hidden = false; beginRobberChoice(); };
+  $('#chooseSeaPirate').onclick = () => { $('#modal').close(); $('#modalClose').hidden = false; beginPirateChoice(); };
+}
+
+function beginPirateChoice() {
+  state.mode = 'pirate';
+  render();
+  toast('青い海タイルを選んで海賊を動かしてください');
+}
+
+function placePirate(tileIndex) {
+  if (state.mode !== 'pirate' || tiles[tileIndex].type !== 'sea') return;
+  state.pendingPirateTile = tileIndex;
+  render();
+  toast('この海域でよければ「確定」を押してください');
+}
+
+function confirmPiratePlacement() {
+  if (state.pendingPirateTile == null) return;
+  const tileIndex = state.pendingPirateTile;
+  state.pirateTile = tileIndex;
+  state.pendingPirateTile = null;
+  state.mode = null;
+  soundEffect('robber');
+  const victims = [...new Set(tiles[tileIndex].vertices.map(vertex => {
+    const ship = Object.entries(state.ships).find(([ei]) => edges[ei].a === vertex || edges[ei].b === vertex);
+    return ship ? state.ships[ship[0]] : null;
+  }).filter(p => p != null && p !== state.turn && randomOwnedResource(p)))];
+  if (victims.length === 0) {
+    state.resolvingSeven = false;
+    render();
+    toast('海賊を移動しました（奪える相手はいません）');
+    return;
+  }
+  if (victims.length === 1) { stealFromVictim(victims[0]); return; }
+  render();
+  showStealDialog(victims);
+}
+
+function cancelPiratePlacement() {
+  state.pendingPirateTile = null;
+  render();
+}
+
+function movePirateAndSteal(roller) {
+  const seaTiles = tiles.map((t, i) => i).filter(i => tiles[i].type === 'sea' && i !== state.pirateTile);
+  if (!seaTiles.length) { moveRobberAndSteal(roller); return; }
+  state.pirateTile = seaTiles[Math.floor(Math.random() * seaTiles.length)];
+  const victims = [...new Set(tiles[state.pirateTile].vertices.map(vertex => {
+    const ship = Object.entries(state.ships).find(([ei]) => edges[ei].a === vertex || edges[ei].b === vertex);
+    return ship ? state.ships[ship[0]] : null;
+  }).filter(p => p != null && p !== roller && randomOwnedResource(p)))];
+  if (victims.length) stealFromVictim(victims[Math.floor(Math.random() * victims.length)]);
+}
+
+function processGoldPickQueue() {
+  if (!state.goldPickQueue || !state.goldPickQueue.length) return;
+  const { player, amount } = state.goldPickQueue[0];
+  const picked = {};
+  showGoldPickDialog(player, amount, picked, () => {
+    state.goldPickQueue.shift();
+    processGoldPickQueue();
+  });
+}
+
+function showGoldPickDialog(player, remaining, picked, onDone) {
+  const owner = state.players[player];
+  $('#modalClose').hidden = true;
+  const resHtml = Object.entries(RESOURCES).map(([key, res]) =>
+    `<button class="gold-pick-btn" data-res="${key}" style="padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white;cursor:pointer;font-size:20px">${res.icon} ${res.name}</button>`
+  ).join('');
+  $('#modalContent').innerHTML = `<h2>${owner.name}：金鉱から資源を受け取る</h2><p>あと <b>${remaining}</b> 枚選んでください</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px">${resHtml}</div>`;
+  $('#modal').showModal();
+  $$('[data-res]').forEach(btn => btn.onclick = () => {
+    const res = btn.dataset.res;
+    if (!res || !RESOURCES[res]) return;
+    if (state.bank[res] > 0) { state.players[player].resources[res]++; state.bank[res]--; }
+    remaining--;
+    if (remaining > 0) showGoldPickDialog(player, remaining, picked, onDone);
+    else { $('#modal').close(); $('#modalClose').hidden = false; onDone(); render(); }
+  });
 }
 
 function showDiscardDialog(who, required) {
@@ -1020,7 +1393,9 @@ function beginRobberChoice() {
 }
 
 function placeRobber(tileIndex) {
+  if (state.mode === 'pirate') { placePirate(tileIndex); return; }
   if (state.mode !== 'robber' || tileIndex === state.robberTile) return;
+  if (state.expansion === 'seafarers' && tiles[tileIndex]?.type === 'sea') return;
   state.pendingRobberTile = tileIndex;
   render();
   toast('この土地でよければ「確定」を押してください');
@@ -1423,22 +1798,31 @@ function playBotDevelopment(player) {
 }
 
 function longestRoadLength(player) {
-  const owned = edges.map((_, index) => index).filter(index => state.roads[index] === player);
-  function walk(vertex, used) {
+  // Longest Trade Route: roads + ships combined (ships cannot pass through enemy settlements)
+  const ownedRoads = edges.map((_, i) => i).filter(i => state.roads[i] === player);
+  const ownedShips = edges.map((_, i) => i).filter(i => state.ships[i] === player);
+  const owned = [...ownedRoads, ...ownedShips];
+  function walk(vertex, used, lastWasShip) {
     if (used.size && state.buildings[vertex] && state.buildings[vertex].player !== player) return used.size;
     let best = used.size;
     owned.forEach(edgeIndex => {
       if (used.has(edgeIndex)) return;
       const edge = edges[edgeIndex];
       if (edge.a !== vertex && edge.b !== vertex) return;
+      const isShip = state.ships[edgeIndex] === player;
+      // Roads and ships can only connect through a settlement (not directly edge-to-edge)
+      if (state.expansion === 'seafarers' && used.size > 0 && isShip !== lastWasShip) {
+        const building = state.buildings[vertex];
+        if (!building || building.player !== player) return;
+      }
       const next = edge.a === vertex ? edge.b : edge.a;
       const nextUsed = new Set(used);
       nextUsed.add(edgeIndex);
-      best = Math.max(best, walk(next, nextUsed));
+      best = Math.max(best, walk(next, nextUsed, isShip));
     });
     return best;
   }
-  return vertices.reduce((best, _, vertex) => Math.max(best, walk(vertex, new Set())), 0);
+  return vertices.reduce((best, _, vertex) => Math.max(best, walk(vertex, new Set(), false)), 0);
 }
 
 function updateAwards() {
@@ -1840,6 +2224,7 @@ $('#startGameBtn').onclick = () => {
   for (let i = 2; i <= humanCount; i++) {
     humanNames.push(($(`#humanName${i}`)?.value || '').trim() || `プレイヤー${i}`);
   }
+  const expansionCheck = $('#expansionSeafarers');
   gameConfig = {
     playerName: name || 'あなた',
     humanCount,
@@ -1849,7 +2234,8 @@ $('#startGameBtn').onclick = () => {
     difficulty: $('input[name="difficulty"]:checked')?.value || 'normal',
     botSpeed: $('input[name="botSpeed"]:checked')?.value || 'normal',
     targetScore: Number($('input[name="targetScore"]:checked')?.value) || 10,
-    music: $('#startMusic').checked
+    music: $('#startMusic').checked,
+    expansion: expansionCheck?.checked ? 'seafarers' : null
   };
   $('#startScreen').classList.add('hidden');
   setAudioEnabled(gameConfig.music);

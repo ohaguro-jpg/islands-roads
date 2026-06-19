@@ -58,7 +58,7 @@
       <fieldset class="start-options future-options">
         <legend>拡張機能</legend>
         <label><input type="checkbox" checked disabled><span><b>基本ゲーム</b><small>3〜4人用</small></span></label>
-        <label class="coming"><input type="checkbox" disabled><span><b>航海者たち</b><small>今後追加予定</small></span></label>
+        <label><input type="checkbox" id="expansionSeafarers"><span><b>航海者たち</b><small>船・金鉱・新しい島を追加</small></span></label>
         <label class="coming"><input type="checkbox" disabled><span><b>都市と騎士</b><small>今後追加予定</small></span></label>
       </fieldset>
       <label class="music-choice"><input type="checkbox" id="startMusic"> BGM・効果音をオン</label>
@@ -133,6 +133,11 @@
           <button class="robber-confirm-btn" onclick="confirmRobberPlacement()">✓ 確定</button>
           <button class="robber-cancel-btn" onclick="cancelRobberPlacement()">← 置き直す</button>
         </div>
+        <div class="robber-confirm-overlay" id="pirateConfirmOverlay" style="display:none">
+          <span class="robber-confirm-hint">⛵ この海域に海賊を置く？</span>
+          <button class="robber-confirm-btn" onclick="confirmPiratePlacement()">✓ 確定</button>
+          <button class="robber-cancel-btn" onclick="cancelPiratePlacement()">← 置き直す</button>
+        </div>
       </section>
       <aside class="sidebar">
         <section class="panel build-panel">
@@ -140,6 +145,9 @@
           <div class="build-options">
             <button class="build-card" data-build="road">
               <span class="build-art road-art"></span><span><b>街道</b><small>🌲 1　🧱 1</small></span><em>建てる</em>
+            </button>
+            <button class="build-card" data-build="ship" id="shipBuildBtn">
+              <span class="build-art">⛵</span><span><b>船</b><small>🌲 1　🐑 1</small></span><em>建てる</em>
             </button>
             <button class="build-card" data-build="settlement">
               <span class="build-art house-art">⌂</span><span><b>開拓地</b><small>🌲 1　🧱 1　🌾 1　🐑 1</small></span><em>建てる</em>
