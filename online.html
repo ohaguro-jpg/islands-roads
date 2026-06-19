@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ISLANDS & ROADS ONLINE</title>
+  <link rel="stylesheet" href="online.css">
+  <link rel="stylesheet" href="online-map.css">
+</head>
+<body>
+  <header><b>ISLANDS <i>&</i> ROADS</b><span>ONLINE</span><a href="index.html">オフライン版</a></header>
+  <main>
+    <section class="join-screen" id="joinScreen">
+      <div class="join-card">
+        <small>ONLINE TABLE</small><h1>みんなの島へ</h1><p>ルームを作って招待リンクを送るか、友達のリンク・番号で参加します。</p>
+        <p class="join-hint" id="joinHint"></p>
+        <label>名前<input id="onlineName" maxlength="12" placeholder="あなたの名前"></label>
+        <div class="join-grid">
+          <div><h2>ルームを作る</h2><select id="onlineBoard"><option value="default">固定盤面</option><option value="random">ランダム盤面</option></select><button id="createRoomBtn">新しいルーム</button></div>
+          <div><h2>番号で参加</h2><input id="roomCodeInput" maxlength="5" placeholder="ABCDE"><button id="joinRoomBtn">参加する</button></div>
+        </div>
+        <button class="rejoin" id="rejoinBtn" hidden>前回のルームへ再参加</button>
+        <p class="error" id="joinError"></p>
+      </div>
+    </section>
+
+    <section class="game" id="gameScreen" hidden>
+      <div class="game-head"><div><small>ROOM</small><strong id="roomCode">-----</strong><button id="copyRoomBtn">招待リンクをコピー</button></div><div id="connectionStatus">接続中</div></div>
+      <div class="layout">
+        <section class="board-panel">
+          <div class="turn-info" id="turnInfo">参加者を待っています</div>
+          <div class="map-tools"><button id="mapZoomIn">＋</button><button id="mapZoomOut">−</button><button id="mapReset">中央</button></div>
+          <div class="board-viewport" id="boardViewport"><svg id="onlineBoardSvg" viewBox="0 0 700 660" aria-label="オンラインゲーム盤"></svg></div>
+          <div class="actions">
+            <button id="rollOnlineBtn">🎲 ダイスを振る</button>
+            <span id="onlineDice">—</span>
+            <button id="roadModeBtn">街道</button><button id="settlementModeBtn">開拓地</button><button id="cityModeBtn">都市</button>
+            <button id="endOnlineBtn">ターン終了</button>
+          </div>
+        </section>
+        <aside>
+          <section><h2>プレイヤー</h2><div id="onlinePlayers"></div><button id="startOnlineBtn" hidden>ゲーム開始</button><small class="lobby-hint" id="lobbyHint"></small></section>
+          <section><h2>あなたの手札</h2><div class="online-hand" id="onlineHand"></div></section>
+          <section><h2>交換を提案</h2>
+            <label>相手<select id="tradeTo"></select></label>
+            <div class="trade-line"><select id="onlineGive"></select><input id="onlineGiveAmount" type="number" min="1" value="1"><b>⇄</b><select id="onlineGet"></select><input id="onlineGetAmount" type="number" min="1" value="1"></div>
+            <button id="offerOnlineTrade">交換を送る</button><div id="tradeOffers"></div>
+          </section>
+          <p class="notice" id="onlineNotice"></p>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <div class="dice-overlay" id="diceOverlay" aria-hidden="true">
+    <div class="dice-overlay-card">
+      <small id="diceOverlayPlayer">DICE ROLL</small>
+      <div class="dice-overlay-values"><b id="diceOverlayA">1</b><b id="diceOverlayB">1</b></div>
+      <strong id="diceOverlayTotal">合計 2</strong>
+    </div>
+  </div>
+  <script src="online.js"></script>
+</body>
+</html>

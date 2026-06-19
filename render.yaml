@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: islands-roads
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /online.html
+    autoDeploy: true
