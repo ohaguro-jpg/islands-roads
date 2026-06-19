@@ -52,4 +52,16 @@
 .dice-overlay-values { display: flex; justify-content: center; gap: 20px; margin: 22px 0 16px; }
 .dice-overlay-values b { width: 120px; height: 120px; display: grid; place-items: center; border: 3px solid var(--ink); border-radius: 22px; background: white; font-size: 64px; box-shadow: 0 10px 0 #d7d0bf; }
 .dice-overlay-card strong { font-size: 22px; }
-@media(max-width:650px){#onlineBoardSvg{width:700px;height:600px;transform:none}}
+/* ===== Mobile: board fits the screen; controls stacked above/below so nothing overlaps the board ===== */
+@media(max-width:650px){
+  .game{padding:0}
+  /* board-panel becomes a vertical stack: turn-info → map-tools → board → actions */
+  .board-panel{min-height:0;overflow:visible;display:flex;flex-direction:column;gap:8px;padding:10px}
+  .turn-info{position:static;align-self:stretch;text-align:center}
+  .map-tools{position:static;align-self:flex-end}
+  /* viewport sized to the board's aspect ratio so the whole map is visible with no clipping */
+  .board-viewport{position:relative;inset:auto;width:100%;aspect-ratio:700/660;height:auto;min-height:320px;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#eef2e8}
+  /* SVG fills the viewport; viewBox + default preserveAspectRatio scales the whole board to fit & center */
+  #onlineBoardSvg{position:absolute;inset:0;width:100%;height:100%;margin:0;transform:none}
+  .actions{position:static;transform:none;width:100%;flex-wrap:wrap;justify-content:center}
+}
