@@ -1446,7 +1446,7 @@ function updateAwards() {
   const roadBest = Math.max(...roadLengths);
   if (roadBest >= 5) {
     const leaders = roadLengths.map((length, player) => ({ length, player })).filter(item => item.length === roadBest);
-    if (leaders.length === 1 || leaders.some(item => item.player === state.longestRoadOwner)) state.longestRoadOwner = leaders.find(item => item.player === state.longestRoadOwner)?.player ?? leaders[0].player;
+    if (!leaders.some(item => item.player === state.longestRoadOwner)) state.longestRoadOwner = leaders.length === 1 ? leaders[0].player : null;
   } else state.longestRoadOwner = null;
   const armies = state.players.map(player => player.playedKnights);
   const armyBest = Math.max(...armies);

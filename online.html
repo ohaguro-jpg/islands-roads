@@ -16,8 +16,8 @@
         <p class="join-hint" id="joinHint"></p>
         <label>名前<input id="onlineName" maxlength="12" placeholder="あなたの名前"></label>
         <div class="join-grid">
-          <div><h2>ルームを作る</h2><select id="onlineBoard"><option value="default">固定盤面</option><option value="random">ランダム盤面</option></select><button id="createRoomBtn">新しいルーム</button></div>
-          <div><h2>番号で参加</h2><input id="roomCodeInput" maxlength="5" placeholder="ABCDE"><button id="joinRoomBtn">参加する</button></div>
+          <div><h2>チームを作る</h2><select id="onlineBoard"><option value="default">固定盤面</option><option value="random">ランダム盤面</option></select><button id="createRoomBtn">チームを作る</button></div>
+          <div><h2>チームに参加</h2><input id="roomCodeInput" maxlength="5" placeholder="ABCDE"><button id="joinRoomBtn">チームに参加</button></div>
         </div>
         <button class="rejoin" id="rejoinBtn" hidden>前回のルームへ再参加</button>
         <p class="error" id="joinError"></p>
@@ -29,8 +29,7 @@
       <div class="layout">
         <section class="board-panel">
           <div class="turn-info" id="turnInfo">参加者を待っています</div>
-          <div class="map-tools"><button id="mapZoomIn">＋</button><button id="mapZoomOut">−</button><button id="mapReset">中央</button></div>
-          <div class="board-viewport" id="boardViewport"><svg id="onlineBoardSvg" viewBox="0 0 700 660" aria-label="オンラインゲーム盤"></svg></div>
+          <div class="board-viewport"><svg id="onlineBoardSvg" viewBox="0 0 700 660" aria-label="オンラインゲーム盤"></svg></div>
           <div class="actions">
             <button id="rollOnlineBtn">🎲 ダイスを振る</button>
             <span id="onlineDice">—</span>
@@ -39,7 +38,7 @@
           </div>
         </section>
         <aside>
-          <section><h2>プレイヤー</h2><div id="onlinePlayers"></div><button id="startOnlineBtn" hidden>ゲーム開始</button><small class="lobby-hint" id="lobbyHint"></small></section>
+          <section><h2>プレイヤー</h2><div id="onlinePlayers"></div><button id="addBotBtn" hidden>＋NPC追加</button><button id="startOnlineBtn" hidden>ゲーム開始</button><small class="lobby-hint" id="lobbyHint"></small></section>
           <section><h2>あなたの手札</h2><div class="online-hand" id="onlineHand"></div></section>
           <section><h2>交換を提案</h2>
             <label>相手<select id="tradeTo"></select></label>

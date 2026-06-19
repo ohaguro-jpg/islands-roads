@@ -114,5 +114,82 @@ if (roadPieces.length !== run('Object.keys(state.roads).length')) throw new Erro
 if (buildingPieces.some(element => !element.style['--piece-color'])) throw new Error('固定建物レイヤーに色がありません');
 if (roadPieces.some(element => !element.style['--piece-color'])) throw new Error('固定街道レイヤーに色がありません');
 
+// Phase 4: 最長交易路テスト
+run(`(function longestRoadTests() {
+  const savedRoads = JSON.parse(JSON.stringify(state.roads));
+  const savedBuildings = JSON.parse(JSON.stringify(state.buildings));
+  const savedLongest = state.longestRoadOwner;
+
+  function findPath(v, used, depth) {
+    if (depth === 5) return [];
+    for (let i = 0; i < edges.length; i++) {
+      if (used.has(i)) continue;
+      if (edges[i].a !== v && edges[i].b !== v) continue;
+      const next = edges[i].a === v ? edges[i].b : edges[i].a;
+      const newUsed = new Set(used);
+      newUsed.add(i);
+      const rest = findPath(next, newUsed, depth + 1);
+      if (rest !== null) return [i].concat(rest);
+    }
+    return null;
+  }
+
+  let testPath = null, testStart = -1;
+  for (let v = 0; v < vertices.length && !testPath; v++) {
+    const p = findPath(v, new Set(), 0);
+    if (p) { testPath = p; testStart = v; }
+  }
+  if (!testPath) throw new Error('最長交易路テスト: 5本のパスが見つかりません');
+
+  // テスト1: 4本 → 賞なし
+  state.roads = {}; state.buildings = {}; state.longestRoadOwner = null;
+  testPath.slice(0, 4).forEach(i => { state.roads[i] = 0; });
+  updateAwards();
+  if (longestRoadLength(0) < 4) throw new Error('最長交易路: 4本の長さが4未満');
+  if (state.longestRoadOwner !== null) throw new Error('最長交易路: 4本で賞が出た');
+
+  // テスト2: 5本 → player0が賞を取り+2VP
+  state.roads = {}; state.buildings = {}; state.longestRoadOwner = null;
+  testPath.forEach(i => { state.roads[i] = 0; });
+  updateAwards();
+  if (longestRoadLength(0) < 5) throw new Error('最長交易路: 5本の長さが5未満');
+  if (state.longestRoadOwner !== 0) throw new Error('最長交易路: 5本で所有者が0でない got=' + state.longestRoadOwner);
+  const base = state.players[0].vp;
+  if (totalVP(0) !== base + 2) throw new Error('最長交易路: +2点反映なし got=' + totalVP(0) + ' expected=' + (base + 2));
+
+  // テスト3: 敵の開拓地で道が切られる → 賞喪失
+  const e1 = edges[testPath[1]], e2 = edges[testPath[2]];
+  const midVertex = (e1.a === e2.a || e1.a === e2.b) ? e1.a : e1.b;
+  state.buildings[midVertex] = { player: 1, type: 'settlement' };
+  updateAwards();
+  if (longestRoadLength(0) >= 5) throw new Error('最長交易路: 敵開拓地で道が切れていない got=' + longestRoadLength(0));
+  if (state.longestRoadOwner !== null) throw new Error('最長交易路: カット後も賞が残っている got=' + state.longestRoadOwner);
+
+  // テスト4: タイブレーク - 元所有者が道を失い単独リーダーに移る
+  state.roads = {}; state.buildings = {}; state.longestRoadOwner = null;
+  testPath.forEach(i => { state.roads[i] = 0; });
+  updateAwards();
+  if (state.longestRoadOwner !== 0) throw new Error('タイブレーク設定失敗');
+  // player1に別の5本パスを割り当て（player0の辺を除外）
+  let testPath2 = null;
+  for (let v = 0; v < vertices.length && !testPath2; v++) {
+    testPath2 = findPath(v, new Set(testPath), 0);
+  }
+  if (testPath2) {
+    testPath2.forEach(i => { state.roads[i] = 1; });
+    updateAwards();
+    // 同数タイ → 元所有者(0)が保持
+    if (state.longestRoadOwner !== 0) throw new Error('最長交易路タイ: 元所有者が失った got=' + state.longestRoadOwner);
+    // player0の道を切る → player1が単独リーダー → player1に移る
+    state.buildings[midVertex] = { player: 2, type: 'settlement' };
+    updateAwards();
+    if (state.longestRoadOwner !== 1) throw new Error('最長交易路: 元所有者喪失後の単独リーダーに移らない got=' + state.longestRoadOwner);
+  }
+
+  state.roads = savedRoads;
+  state.buildings = savedBuildings;
+  state.longestRoadOwner = savedLongest;
+})()`);
+
 console.log('offline full play test: PASS');
 console.log(run(`JSON.stringify({round:state.round,turn:state.turn,buildings:Object.keys(state.buildings).length,roads:Object.keys(state.roads).length,vp:state.players.map((_,i)=>totalVP(i)),developmentDeck:state.devDeck.length})`));

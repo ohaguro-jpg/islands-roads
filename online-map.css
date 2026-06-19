@@ -2,24 +2,15 @@
   position: absolute;
   inset: 0 0 72px;
   overflow: hidden;
-  cursor: grab;
-  touch-action: none;
 }
-.board-viewport.dragging { cursor: grabbing; }
 #onlineBoardSvg {
-  position: absolute;
-  top: 20px;
-  left: 50%;
   display: block;
-  width: 700px;
-  height: 660px;
-  margin: 0 0 0 -350px;
-  transform-origin: 50% 50%;
-  will-change: transform;
+  width: 100%;
+  max-width: 700px;
+  height: auto;
+  margin: 16px auto 0;
 }
 .turn-info { z-index: 6; }
-.map-tools { position: absolute; top: 16px; right: 16px; z-index: 7; display: flex; gap: 4px; }
-.map-tools button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: white; cursor: pointer; font-weight: 800; }
 .lobby-hint { display: block; margin-top: 7px; color: #77847e; font-size: 9px; }
 .road-outline { stroke: white; stroke-width: 17; stroke-linecap: round; }
 .dice-overlay {
@@ -55,14 +46,10 @@
 /* ===== Mobile: board fits the screen; controls stacked above/below so nothing overlaps the board ===== */
 @media(max-width:650px){
   .game{padding:0}
-  /* board-panel becomes a vertical stack: turn-info → map-tools → board → actions */
   .board-panel{min-height:0;overflow:visible;display:flex;flex-direction:column;gap:8px;padding:10px}
   .turn-info{position:static;align-self:stretch;text-align:center}
-  .map-tools{position:static;align-self:flex-end}
-  /* viewport sized to the board's aspect ratio so the whole map is visible with no clipping */
   .board-viewport{position:relative;inset:auto;width:100%;aspect-ratio:700/660;height:auto;min-height:320px;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#eef2e8}
-  /* SVG fills the viewport; viewBox + default preserveAspectRatio scales the whole board to fit & center */
-  #onlineBoardSvg{position:absolute;inset:0;width:100%;height:100%;margin:0;transform:none}
+  #onlineBoardSvg{position:absolute;inset:0;width:100%;height:100%;margin:0}
   .actions{position:static;transform:none;width:100%;flex-wrap:wrap;justify-content:center}
 }
 

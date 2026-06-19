@@ -68,6 +68,7 @@ function buildGeometry(random = true) {
     .sort((a, b) => a.angle - b.angle);
   const harborTypes = random ? shuffle([null, null, null, null, 'wood', 'brick', 'wheat', 'sheep', 'ore']) : [null, 'wood', null, 'brick', null, 'wheat', 'sheep', null, 'ore'];
   const harbors = {};
+  const harborEdges = [];
   const usedHarborVertices = new Set();
   for (let i = 0; i < 9 && boundaryEdges.length; i++) {
     const target = Math.floor(i * boundaryEdges.length / 9);
@@ -76,8 +77,9 @@ function buildGeometry(random = true) {
     const he = boundaryEdges[(target + offset) % boundaryEdges.length].e;
     usedHarborVertices.add(he.a); usedHarborVertices.add(he.b);
     harbors[he.a] = harborTypes[i]; harbors[he.b] = harborTypes[i];
+    harborEdges.push({ a: he.a, b: he.b, type: harborTypes[i] });
   }
-  return { tiles, vertices, edges, harbors };
+  return { tiles, vertices, edges, harbors, harborEdges };
 }
 function maritimeRate(game, player, resource) {
   let rate = 4;
@@ -94,8 +96,34 @@ function visibleVP(game, player) { return game.vp[player] + (game.longestRoadOwn
 function totalVP(game, player) { return visibleVP(game, player) + victoryCards(game, player); }
 function updateArmy(game) {
   const best = Math.max(...game.playedKnights);
-  if (best >= 3) { const leaders = game.playedKnights.map((size, p) => ({ size, p })).filter(i => i.size === best); if (leaders.length === 1 || leaders.some(i => i.p === game.largestArmyOwner)) game.largestArmyOwner = leaders.find(i => i.p === game.largestArmyOwner)?.p ?? leaders[0].p; }
+  if (best >= 3) { const leaders = game.playedKnights.map((size, p) => ({ size, p })).filter(i => i.size === best); if (!leaders.some(i => i.p === game.largestArmyOwner)) game.largestArmyOwner = leaders.length === 1 ? leaders[0].p : null; }
   else game.largestArmyOwner = null;
+}
+
+function longestRoadLength(game, player) {
+  const owned = game.edges.filter(e => game.roads[e.id] === player);
+  function walk(vertex, used) {
+    if (used.size > 0 && game.buildings[vertex] && game.buildings[vertex].player !== player) return used.size;
+    let best = used.size;
+    for (const e of owned) {
+      if (used.has(e.id) || (e.a !== vertex && e.b !== vertex)) continue;
+      const next = e.a === vertex ? e.b : e.a;
+      used.add(e.id); best = Math.max(best, walk(next, used)); used.delete(e.id);
+    }
+    return best;
+  }
+  let best = 0;
+  for (const v of game.vertices) best = Math.max(best, walk(v.id, new Set()));
+  return best;
+}
+function updateLongestRoad(game) {
+  const n = game.playedKnights.length;
+  const lengths = Array.from({ length: n }, (_, p) => longestRoadLength(game, p));
+  const best = Math.max(...lengths);
+  if (best >= 5) {
+    const leaders = lengths.map((len, p) => ({ len, p })).filter(i => i.len === best);
+    if (!leaders.some(i => i.p === game.longestRoadOwner)) game.longestRoadOwner = leaders.length === 1 ? leaders[0].p : null;
+  } else game.longestRoadOwner = null;
 }
 
 function createRoom(name, boardMode) {
@@ -254,6 +282,7 @@ function act(room, player, type, payload = {}) {
     if (!validSettlement(game, payload.vertex, player, setup)) throw new Error('その場所には建設できません');
     if (!setup) { if (pieceCount(game, player, 'settlement') >= 5 || !canPay(game, player, 'settlement')) throw new Error('資源または駒が足りません'); pay(game, player, 'settlement'); }
     game.buildings[payload.vertex] = { player, type: 'settlement' }; game.vp[player]++;
+    updateLongestRoad(game);
     if (setup) {
       if (game.setupIndex >= room.players.length) game.vertices[payload.vertex].tiles.forEach(tileId => { const resource = TYPE_RESOURCE[game.tiles[tileId].type]; if (resource && game.bank[resource]) { game.hands[player][resource]++; game.bank[resource]--; } });
       game.setupVertex = payload.vertex; game.stage = 'setup-road';
@@ -264,10 +293,11 @@ function act(room, player, type, payload = {}) {
     if (!validRoad(game, payload.edge, player, setup ? game.setupVertex : null)) throw new Error('その場所には建設できません');
     if (!setup) {
       if (pieceCount(game, player, 'road') >= 15) throw new Error('街道の駒が足りません');
-      if (game.freeRoads > 0) game.freeRoads--; // 街道建設カードの無料街道
+      if (game.freeRoads > 0) game.freeRoads--;
       else { if (!canPay(game, player, 'road')) throw new Error('資源が足りません'); pay(game, player, 'road'); }
     }
     game.roads[payload.edge] = player;
+    updateLongestRoad(game);
     if (setup) finishSetupPair(room);
   } else if (type === 'roll') {
     if (game.turn !== player || game.stage !== 'roll' || game.rolled) throw new Error('今はダイスを振れません');
@@ -359,7 +389,7 @@ function publicState(room, playerId) {
   const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
-  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
+  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, harborEdges: game.harborEdges, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, longestRoadOwner: game.longestRoadOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, devPlayed: game.devPlayed[playerId], offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
 }
 function findIdentity(room, authToken) { return authToken ? room.players.find(player => player.token === authToken && !player.isBot) : null; }
 function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); }
@@ -400,7 +430,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
       const body = await readBody(request); const result = createRoom(body.name, body.boardMode); return json(response, 201, result.identity);
     }
-    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events))?$/);
+    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot))?$/);
     if (match) {
       const room = rooms.get(match[1]); if (!room) return json(response, 404, { error: 'ルームが見つかりません' });
       const operation = match[2] || 'state';
@@ -418,6 +448,14 @@ const server = http.createServer(async (request, response) => {
         response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
         response.write(`event: state\ndata: ${JSON.stringify(publicState(room, player.id))}\n\n`);
         const client = { response, playerId: player.id }; room.clients.add(client); request.on('close', () => room.clients.delete(client)); return;
+      }
+      if (operation === 'addbot' && request.method === 'POST') {
+        if (room.host !== player.id) throw new Error('ホストだけがNPCを追加できます');
+        if (room.phase !== 'lobby') throw new Error('ゲームはすでに開始しています');
+        if (room.players.length >= 4) throw new Error('このルームは満員です');
+        const botNum = room.players.filter(p => p.isBot).length + 1;
+        const bot = { id: room.players.length, name: `NPC ${botNum}`, color: COLORS[room.players.length], token: token(), connected: true, isBot: true };
+        room.players.push(bot); touch(room); return json(response, 200, { ok: true });
       }
       if (operation === 'start' && request.method === 'POST') { const body = await readBody(request); startRoom(room, player.id, Boolean(body.fillBots)); return json(response, 200, { ok: true }); }
       if (operation === 'action' && request.method === 'POST') { const body = await readBody(request); act(room, player.id, body.type, body.payload); return json(response, 200, { ok: true }); }
