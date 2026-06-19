@@ -14,8 +14,10 @@ async function request(url,options={}){
 function saveSession(value){session=value;localStorage.setItem('islands-online-session',JSON.stringify(value));}
 function showGame(){ $('#joinScreen').hidden=true;$('#gameScreen').hidden=false;$('#roomCode').textContent=session.roomCode;connect(); }
 
-async function createRoom(){try{const result=await request('/api/rooms',{method:'POST',body:JSON.stringify({name:$('#onlineName').value,boardMode:$('#onlineBoard').value})});saveSession(result);showGame()}catch(e){$('#joinError').textContent=e.message}}
-async function joinRoom(rejoin=false){try{const code=(rejoin?session.roomCode:$('#roomCodeInput').value).trim().toUpperCase();const result=await request(`/api/rooms/${code}/join`,{method:'POST',body:JSON.stringify(rejoin?{rejoinToken:session.token}:{name:$('#onlineName').value})});saveSession(result);showGame()}catch(e){$('#joinError').textContent=e.message}}
+// サーバー起床に最大30秒ほどかかるので、押した瞬間にボタンを「作業中」表示にして反応を見せる
+async function withPending(btn,label,fn){const original=btn.textContent;btn.disabled=true;btn.textContent=label;$('#joinError').textContent='サーバーを起こしています…最大30秒ほどお待ちください';try{await fn()}catch(e){$('#joinError').textContent=e.message}finally{btn.disabled=false;btn.textContent=original}}
+async function createRoom(){await withPending($('#createRoomBtn'),'作成中…',async()=>{const result=await request('/api/rooms',{method:'POST',body:JSON.stringify({name:$('#onlineName').value,boardMode:$('#onlineBoard').value})});saveSession(result);showGame()})}
+async function joinRoom(rejoin=false){const btn=rejoin?$('#rejoinBtn'):$('#joinRoomBtn');await withPending(btn,'参加中…',async()=>{const code=(rejoin?session.roomCode:$('#roomCodeInput').value).trim().toUpperCase();const result=await request(`/api/rooms/${code}/join`,{method:'POST',body:JSON.stringify(rejoin?{rejoinToken:session.token}:{name:$('#onlineName').value})});saveSession(result);showGame()})}
 function connect(){if(source)source.close();source=new EventSource(`/api/rooms/${session.roomCode}/events?token=${encodeURIComponent(session.token)}`);source.addEventListener('state',event=>{state=JSON.parse(event.data);$('#connectionStatus').textContent='● 同期中';render()});source.onerror=()=>{$('#connectionStatus').textContent='再接続中…'};}
 async function action(type,payload={}){try{await request(`/api/rooms/${session.roomCode}/action`,{method:'POST',body:JSON.stringify({type,payload})});message('')}catch(e){message(e.message,true)}}
 
