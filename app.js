@@ -80,9 +80,11 @@ function showPassScreen(name, subtitle, onConfirm, color) {
     avatar.textContent = (name || '?')[0];
     if (color) avatar.style.background = color;
   }
+  overlay.style.display = 'grid';
   overlay.classList.remove('hidden');
   const confirmBtn = $('#passConfirmBtn');
   if (confirmBtn) confirmBtn.onclick = () => {
+    overlay.style.display = 'none';
     overlay.classList.add('hidden');
     if (onConfirm) onConfirm();
   };
