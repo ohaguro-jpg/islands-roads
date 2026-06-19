@@ -8,7 +8,7 @@ const ROOT = __dirname;
 const rooms = new Map();
 const COLORS = ['#c95642', '#3d7181', '#d9a838', '#577b59'];
 const RESOURCES = ['wood', 'brick', 'wheat', 'sheep', 'ore'];
-const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 } };
+const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 } };
 const TYPES = ['forest','forest','forest','forest','hills','hills','hills','pasture','pasture','pasture','pasture','fields','fields','fields','fields','mountains','mountains','mountains','desert'];
 const TYPE_RESOURCE = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null };
 const NUMBERS = [5,2,6,3,8,10,9,12,11,4,8,10,9,4,5,6,3,11];
@@ -87,6 +87,16 @@ function maritimeRate(game, player, resource) {
   }
   return rate;
 }
+function victoryCards(game, player) { return [...game.dev[player], ...game.newDev[player]].filter(c => c === 'victory').length; }
+// 表示用の勝利点（建物＋最長交易路＋最大騎士力。隠れた勝利点カードは含めない）
+function visibleVP(game, player) { return game.vp[player] + (game.longestRoadOwner === player ? 2 : 0) + (game.largestArmyOwner === player ? 2 : 0); }
+// 勝敗判定用の総勝利点（勝利点カードも含む）
+function totalVP(game, player) { return visibleVP(game, player) + victoryCards(game, player); }
+function updateArmy(game) {
+  const best = Math.max(...game.playedKnights);
+  if (best >= 3) { const leaders = game.playedKnights.map((size, p) => ({ size, p })).filter(i => i.size === best); if (leaders.length === 1 || leaders.some(i => i.p === game.largestArmyOwner)) game.largestArmyOwner = leaders.find(i => i.p === game.largestArmyOwner)?.p ?? leaders[0].p; }
+  else game.largestArmyOwner = null;
+}
 
 function createRoom(name, boardMode) {
   const code = roomCode();
@@ -116,7 +126,10 @@ function startRoom(room, playerId, fillBots = false) {
     ...geometry, turn: order[0], round: 0, stage: 'setup-settlement', setupOrder: order, setupIndex: 0, setupVertex: null,
     rolled: false, dice: null, buildings: {}, roads: {}, robberTile: geometry.tiles.find(tile => tile.type === 'desert').id,
     bank: Object.fromEntries(RESOURCES.map(resource => [resource, 19])),
-    hands: room.players.map(() => emptyResources()), vp: room.players.map(() => 0), winner: null
+    hands: room.players.map(() => emptyResources()), vp: room.players.map(() => 0), winner: null,
+    devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
+    dev: room.players.map(() => []), newDev: room.players.map(() => []), playedKnights: room.players.map(() => 0),
+    devPlayed: room.players.map(() => false), freeRoads: 0, largestArmyOwner: null, longestRoadOwner: null
   };
   touch(room);
 }
@@ -147,16 +160,15 @@ function scheduleRoomBot(room) {
       } else if (game.stage === 'build') {
         game.botActions = (game.botActions || 0) + 1;
         const city = Object.entries(game.buildings).find(([, piece]) => piece.player === player && piece.type === 'settlement');
-        if (game.botActions <= 3 && city && canPay(game, player, 'city') && pieceCount(game, player, 'city') < 4) act(room, player, 'buildCity', { vertex: Number(city[0]) });
-        else {
-          const settlement = game.vertices.find(item => validSettlement(game, item.id, player, false));
-          if (game.botActions <= 3 && settlement && canPay(game, player, 'settlement') && pieceCount(game, player, 'settlement') < 5) act(room, player, 'placeSettlement', { vertex: settlement.id });
-          else {
-            const road = game.edges.find(item => validRoad(game, item.id, player));
-            if (game.botActions <= 3 && road && canPay(game, player, 'road') && pieceCount(game, player, 'road') < 15) act(room, player, 'placeRoad', { edge: road.id });
-            else act(room, player, 'endTurn');
-          }
-        }
+        const settlement = game.vertices.find(item => validSettlement(game, item.id, player, false));
+        const road = game.edges.find(item => validRoad(game, item.id, player));
+        if (game.botActions > 3) act(room, player, 'endTurn');
+        else if (!game.devPlayed[player] && game.dev[player].includes('knight') && game.tiles.some(t => t.id !== game.robberTile && robberVictims(game, t.id, player).length)) act(room, player, 'playDev', { card: 'knight' });
+        else if (city && canPay(game, player, 'city') && pieceCount(game, player, 'city') < 4) act(room, player, 'buildCity', { vertex: Number(city[0]) });
+        else if (settlement && canPay(game, player, 'settlement') && pieceCount(game, player, 'settlement') < 5) act(room, player, 'placeSettlement', { vertex: settlement.id });
+        else if (road && canPay(game, player, 'road') && pieceCount(game, player, 'road') < 15) act(room, player, 'placeRoad', { edge: road.id });
+        else if (game.devDeck.length && canPay(game, player, 'development')) act(room, player, 'buyDev');
+        else act(room, player, 'endTurn');
       }
     } catch (error) {
       console.error('Online NPC error:', error.message);
@@ -250,7 +262,11 @@ function act(room, player, type, payload = {}) {
     if (game.turn !== player || !['setup-road','build'].includes(game.stage)) throw new Error('今は街道を置けません');
     const setup = game.stage === 'setup-road';
     if (!validRoad(game, payload.edge, player, setup ? game.setupVertex : null)) throw new Error('その場所には建設できません');
-    if (!setup) { if (pieceCount(game, player, 'road') >= 15 || !canPay(game, player, 'road')) throw new Error('資源または駒が足りません'); pay(game, player, 'road'); }
+    if (!setup) {
+      if (pieceCount(game, player, 'road') >= 15) throw new Error('街道の駒が足りません');
+      if (game.freeRoads > 0) game.freeRoads--; // 街道建設カードの無料街道
+      else { if (!canPay(game, player, 'road')) throw new Error('資源が足りません'); pay(game, player, 'road'); }
+    }
     game.roads[payload.edge] = player;
     if (setup) finishSetupPair(room);
   } else if (type === 'roll') {
@@ -285,6 +301,8 @@ function act(room, player, type, payload = {}) {
     pay(game, player, 'city'); building.type = 'city'; game.vp[player]++;
   } else if (type === 'endTurn') {
     if (game.turn !== player || game.stage !== 'build') throw new Error('ターンを終了できません');
+    game.dev[player] = game.dev[player].concat(game.newDev[player]); game.newDev[player] = []; // 今買ったカードは次ターンから使える
+    game.devPlayed[player] = false; game.freeRoads = 0;
     game.turn = (game.turn + 1) % room.players.length; if (game.turn === 0) game.round++; game.stage = 'roll'; game.rolled = false; game.dice = null;
   } else if (type === 'bankTrade') {
     if (game.turn !== player || game.stage !== 'build') throw new Error('今は交換できません');
@@ -294,6 +312,29 @@ function act(room, player, type, payload = {}) {
     if (game.hands[player][give] < rate) throw new Error(`${give}が${rate}枚必要です`);
     if (game.bank[get] < 1) throw new Error('銀行に在庫がありません');
     game.hands[player][give] -= rate; game.bank[give] += rate; game.hands[player][get]++; game.bank[get]--;
+  } else if (type === 'buyDev') {
+    if (game.turn !== player || game.stage !== 'build') throw new Error('今は購入できません');
+    if (!game.devDeck.length) throw new Error('発展カードの山札がありません');
+    if (!canPay(game, player, 'development')) throw new Error('資源が足りません（🌾1 🐑1 ⛏1）');
+    pay(game, player, 'development'); game.newDev[player].push(game.devDeck.pop());
+  } else if (type === 'playDev') {
+    if (game.turn !== player || game.stage !== 'build') throw new Error('今はカードを使えません');
+    if (game.devPlayed[player]) throw new Error('発展カードは1ターンに1枚までです');
+    const card = payload.card, idx = game.dev[player].indexOf(card);
+    if (idx < 0 || card === 'victory') throw new Error('そのカードは使えません');
+    // 状態を変える前に検証する（途中失敗で壊れないように）
+    let plentyAmts, monoRes;
+    if (card === 'plenty') {
+      plentyAmts = {}; let total = 0;
+      for (const r of RESOURCES) { const n = Math.max(0, Number((payload.resources || {})[r]) || 0); plentyAmts[r] = n; total += n; }
+      if (total !== 2) throw new Error('合計2枚を選んでください');
+      for (const r of RESOURCES) if (plentyAmts[r] > game.bank[r]) throw new Error('銀行の在庫が足りません');
+    } else if (card === 'monopoly') { monoRes = payload.resource; if (!RESOURCES.includes(monoRes)) throw new Error('資源を選んでください'); }
+    game.dev[player].splice(idx, 1); game.devPlayed[player] = true;
+    if (card === 'knight') { game.playedKnights[player]++; updateArmy(game); game.stage = 'robber'; } // 既存の盗賊フローへ
+    else if (card === 'roadBuilding') { game.freeRoads = 2; }
+    else if (card === 'plenty') { for (const r of RESOURCES) { game.hands[player][r] += plentyAmts[r]; game.bank[r] -= plentyAmts[r]; } }
+    else if (card === 'monopoly') { room.players.forEach((p, i) => { if (i === player) return; game.hands[player][monoRes] += game.hands[i][monoRes]; game.hands[i][monoRes] = 0; }); }
   } else if (type === 'offerTrade') {
     if (game.turn !== player || game.stage !== 'build') throw new Error('今は交換できません');
     const to = Number(payload.to), giveAmount = Number(payload.giveAmount), getAmount = Number(payload.getAmount);
@@ -310,7 +351,7 @@ function act(room, player, type, payload = {}) {
     }
     room.offers = room.offers.filter(item => item.id !== offer.id);
   } else throw new Error('不明な操作です');
-  if (game.vp[player] >= 10) game.winner = player;
+  if (totalVP(game, player) >= 10) game.winner = player;
   touch(room);
 }
 
@@ -318,7 +359,7 @@ function publicState(room, playerId) {
   const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
-  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: game.vp, winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
+  return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
 }
 function findIdentity(room, authToken) { return authToken ? room.players.find(player => player.token === authToken && !player.isBot) : null; }
 function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); }

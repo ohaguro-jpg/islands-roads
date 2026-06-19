@@ -50,7 +50,13 @@ function validVertex(game) {
     hostState = await api(`/api/rooms/${host.roomCode}/state`, 'GET', null, host.token);
     if (hostState.game.stage !== 'roll' || hostState.game.turn !== 0) throw new Error('setup did not complete');
     await api(`/api/rooms/${host.roomCode}/action`, 'POST', { type: 'roll' }, host.token);
-    const rolled = await api(`/api/rooms/${host.roomCode}/state`, 'GET', null, guest.token);
+    let rolled = await api(`/api/rooms/${host.roomCode}/state`, 'GET', null, guest.token);
+    // 7が出た場合は盗賊を動かして手番を進める（手札が少なく捨て段階は来ない想定）
+    if (rolled.game.stage === 'robber') {
+      const tile = rolled.game.tiles.find(t => t.id !== rolled.game.robberTile).id;
+      await api(`/api/rooms/${host.roomCode}/action`, 'POST', { type: 'moveRobber', payload: { tile } }, host.token);
+      rolled = await api(`/api/rooms/${host.roomCode}/state`, 'GET', null, guest.token);
+    }
     if (!rolled.game.dice || rolled.game.stage !== 'build') throw new Error('dice state did not sync');
     const rejoined = await api(`/api/rooms/${host.roomCode}/join`, 'POST', { rejoinToken: guest.token });
     if (rejoined.playerId !== guest.playerId) throw new Error('rejoin failed');
