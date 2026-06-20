@@ -565,6 +565,9 @@ const invitedRoom=new URLSearchParams(location.search).get('room');
 if(invitedRoom){
   const code=invitedRoom.trim().toUpperCase().slice(0,5);
   $('#roomCodeInput').value=code;
-  $('#joinHint').textContent=`ルーム ${code} に参加します。名前を入れて「チームに参加」を押してください。`;
+  document.querySelector('.join-card').classList.add('invite-mode');
+  document.querySelector('.join-card h1').textContent='チームに参加';
+  document.querySelector('.join-card>p').hidden=true;
+  $('#joinHint').textContent=`ルーム ${code} に参加します`;
   $('#onlineName').focus();
 }
