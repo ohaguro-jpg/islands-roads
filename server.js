@@ -262,9 +262,9 @@ function updateLongestRoad(game) {
   } else game.longestRoadOwner = null;
 }
 
-function createRoom(name, boardMode, expansion) {
+function createRoom(name, boardMode, expansion, difficulty) {
   const code = roomCode();
-  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, players: [], version: 1, clients: new Set(), game: null, offers: [] };
+  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: ['easy','hard'].includes(difficulty) ? difficulty : 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [] };
   rooms.set(code, room);
   return { room, identity: addPlayer(room, name) };
 }
@@ -562,6 +562,16 @@ function act(room, player, type, payload = {}) {
     if (!room.players[to] || to === player || !RESOURCES.includes(payload.give) || !RESOURCES.includes(payload.get) || payload.give === payload.get || giveAmount < 1 || getAmount < 1 || game.hands[player][payload.give] < giveAmount) throw new Error('交換条件が不正です');
     room.offers = room.offers.filter(offer => offer.from !== player);
     room.offers.push({ id: token().slice(0, 8), from: player, to, give: payload.give, giveAmount, get: payload.get, getAmount });
+  } else if (type === 'offerAll') {
+    if (game.turn !== player || game.stage !== 'build') throw new Error('今は交換できません');
+    const { give, get, giveAmount, getAmount } = payload;
+    const gAmt = Number(giveAmount), rAmt = Number(getAmount);
+    if (!RESOURCES.includes(give) || !RESOURCES.includes(get) || give === get || gAmt < 1 || rAmt < 1 || game.hands[player][give] < gAmt) throw new Error('交換条件が不正です');
+    room.offers = room.offers.filter(offer => offer.from !== player);
+    room.players.forEach((p, i) => {
+      if (i === player || p.isBot) return;
+      room.offers.push({ id: token().slice(0, 8), from: player, to: i, give, giveAmount: gAmt, get, getAmount: rAmt });
+    });
   } else if (type === 'respondTrade') {
     const offer = room.offers.find(item => item.id === payload.offerId && item.to === player);
     if (!offer) throw new Error('交換提案がありません');
@@ -619,7 +629,7 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   try {
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
-      const body = await readBody(request); const result = createRoom(body.name, body.boardMode); return json(response, 201, result.identity);
+      const body = await readBody(request); const result = createRoom(body.name, body.boardMode, null, body.difficulty); return json(response, 201, result.identity);
     }
     const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot))?$/);
     if (match) {

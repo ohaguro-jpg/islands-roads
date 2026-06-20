@@ -53,6 +53,24 @@
   .actions{position:static;transform:none;width:100%;flex-wrap:wrap;justify-content:center}
 }
 
+/* ===== SVG tile colors ===== */
+.tile{stroke:#f8f0dc;stroke-width:3}
+.tile.forest{fill:#4c7954}
+.tile.hills{fill:#a86143}
+.tile.pasture{fill:#91ad63}
+.tile.fields{fill:#d0ad4c}
+.tile.mountains{fill:#797d7c}
+.tile.desert{fill:#d8bd7c}
+.tile-number{fill:#fff3d1;stroke:#b8a878;stroke-width:1.5}
+.tile-num-text{fill:#3a2c08;font-weight:800;dominant-baseline:middle;text-anchor:middle}
+.tile-num-text.hot{fill:#b83c1c}
+.edge-hit{stroke:transparent;stroke-width:18;cursor:pointer;fill:none}
+.road{stroke-linecap:round;paint-order:stroke}
+.node{fill:#fff8;stroke:#17372f55;stroke-width:2;cursor:pointer}
+.node.available{fill:#ffd24f;stroke:white;stroke-width:4}
+.building{stroke:white;stroke-width:3}
+.robber{fill:#27332f;stroke:white;stroke-width:2}
+
 /* ===== Robber targeting + 7-discard / steal modals ===== */
 .robber-target{fill:#f8d05c40;stroke:#d9a838;stroke-width:3;cursor:pointer;transition:fill .12s}
 .robber-target:hover{fill:#f8d05c88}

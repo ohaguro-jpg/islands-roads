@@ -4,85 +4,197 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ISLANDS & ROADS ONLINE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="trade.css">
   <link rel="stylesheet" href="online.css">
   <link rel="stylesheet" href="online-map.css">
 </head>
 <body>
-  <header><b>ISLANDS <i>&</i> ROADS</b><span>ONLINE</span><a href="index.html">オフライン版</a></header>
-  <main>
-    <section class="join-screen" id="joinScreen">
-      <div class="join-card">
-        <small>ONLINE TABLE</small><h1>みんなの島へ</h1><p>ルームを作って招待リンクを送るか、友達のリンク・番号で参加します。</p>
-        <p class="join-hint" id="joinHint"></p>
-        <label>名前<input id="onlineName" maxlength="12" placeholder="あなたの名前"></label>
-        <div class="join-grid">
-          <div><h2>チームを作る</h2><select id="onlineBoard"><option value="default">固定盤面</option><option value="random">ランダム盤面</option></select><button id="createRoomBtn">チームを作る</button></div>
-          <div><h2>チームに参加</h2><input id="roomCodeInput" maxlength="5" placeholder="ABCDE"><button id="joinRoomBtn">チームに参加</button></div>
-        </div>
-        <button class="rejoin" id="rejoinBtn" hidden>前回のルームへ再参加</button>
-        <p class="error" id="joinError"></p>
-      </div>
-    </section>
 
-    <section class="game" id="gameScreen" hidden>
-      <div class="game-head"><div><small>ROOM</small><strong id="roomCode">-----</strong><button id="copyRoomBtn">招待リンクをコピー</button></div><div id="connectionStatus">接続中</div></div>
-      <div class="layout">
-        <section class="board-panel">
-          <div class="turn-info" id="turnInfo">参加者を待っています</div>
-          <div class="board-viewport"><svg id="onlineBoardSvg" viewBox="0 0 700 660" aria-label="オンラインゲーム盤"></svg></div>
-          <div class="online-zoom-controls">
+  <!-- ===== JOIN SCREEN (lobby) ===== -->
+  <section class="join-screen" id="joinScreen">
+    <div class="join-card">
+      <small>ONLINE TABLE</small>
+      <h1>みんなの島へ</h1>
+      <p>ルームを作って招待リンクを送るか、友達のリンク・番号で参加します。</p>
+      <p class="join-hint" id="joinHint"></p>
+      <label>名前<input id="onlineName" maxlength="12" placeholder="あなたの名前"></label>
+      <div class="join-grid">
+        <div>
+          <h2>チームを作る</h2>
+          <select id="onlineBoard"><option value="default">固定盤面</option><option value="random">ランダム盤面</option></select>
+          <select id="onlineDifficulty"><option value="normal" selected>NPC：ふつう</option><option value="easy">NPC：やさしい</option><option value="hard">NPC：強い</option></select>
+          <button id="createRoomBtn">チームを作る</button>
+        </div>
+        <div>
+          <h2>チームに参加</h2>
+          <input id="roomCodeInput" maxlength="5" placeholder="ABCDE">
+          <button id="joinRoomBtn">チームに参加</button>
+        </div>
+      </div>
+      <button class="rejoin" id="rejoinBtn" hidden>前回のルームへ再参加</button>
+      <p class="error" id="joinError"></p>
+    </div>
+  </section>
+
+  <!-- ===== GAME SCREEN ===== -->
+  <div class="app-shell" id="gameScreen" style="display:none">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-players">
+        <div id="playersList"></div>
+        <span id="roundLabel" class="round-pill">ROUND 1</span>
+      </div>
+      <div class="topbar-online">
+        <span id="connectionStatus" class="conn-pill">接続中…</span>
+        <b id="roomCode" class="room-code-badge">-----</b>
+        <button id="copyRoomBtn" class="topbar-invite-btn">招待リンクをコピー</button>
+        <a class="topbar-offline-link" href="index.html">オフライン版</a>
+      </div>
+    </header>
+
+    <!-- Hand Bar -->
+    <div class="hand-bar">
+      <span class="hand-bar-label">あなたの手札</span>
+      <div class="resource-grid" id="resourceGrid"></div>
+      <span class="hand-bar-count" id="cardCount">0 CARDS</span>
+    </div>
+
+    <main>
+      <!-- Board Area -->
+      <section class="game-stage">
+        <div class="turn-banner">
+          <span class="turn-dot" id="turnDot"></span>
+          <div><small>現在のターン</small><strong id="turnName">-</strong></div>
+          <span class="turn-score" id="turnScore">- VP</span>
+        </div>
+        <div class="board-wrap">
+          <svg id="onlineBoardSvg" viewBox="0 0 700 660" aria-label="オンラインゲーム盤"></svg>
+          <div class="zoom-controls">
             <button id="onlineZoomIn">＋</button><button id="onlineZoomOut">−</button>
           </div>
-          <div class="actions">
-            <button id="rollOnlineBtn">🎲 ダイスを振る</button>
-            <span id="onlineDice">—</span>
-            <button id="roadModeBtn">街道</button><button id="settlementModeBtn">開拓地</button><button id="cityModeBtn">都市</button>
-            <button id="endOnlineBtn">ターン終了</button>
+        </div>
+        <div class="action-bar">
+          <button class="primary-action" id="rollOnlineBtn" disabled>
+            <span class="dice-icon">⚄</span>
+            <span><small>アクション</small>ダイスを振る</span>
+          </button>
+          <div class="dice-result" id="diceResult"><span>—</span><span>—</span></div>
+          <button class="end-turn" id="endOnlineBtn" disabled>ターン終了 →</button>
+        </div>
+        <div class="robber-confirm-overlay" id="robberConfirmOverlay" style="display:none">
+          <span class="robber-confirm-hint">♟ この土地に盗賊を置く？</span>
+          <button class="robber-confirm-btn" id="robberConfirmBtn">✓ 確定</button>
+          <button class="robber-cancel-btn" id="robberCancelBtn">← 置き直す</button>
+        </div>
+        <p class="notice" id="onlineNotice"></p>
+      </section>
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+
+        <!-- Lobby panel (pre-game) -->
+        <section class="panel" id="lobbyPanel" hidden>
+          <div class="panel-heading"><h2>ロビー</h2><span id="lobbyStatus"></span></div>
+          <div id="onlinePlayers"></div>
+          <button id="addBotBtn" hidden>＋NPC追加</button>
+          <button id="startOnlineBtn" hidden>ゲーム開始</button>
+          <small class="lobby-hint" id="lobbyHint"></small>
+        </section>
+
+        <!-- Build panel -->
+        <section class="panel build-panel">
+          <div class="panel-heading"><h2>建設</h2><span>コスト</span></div>
+          <div class="build-options">
+            <button class="build-card" id="roadModeBtn" data-build="road">
+              <span class="build-art road-art"></span>
+              <span><b>街道</b><small>🌲 1　🧱 1</small></span>
+              <em>建てる</em>
+            </button>
+            <button class="build-card" id="settlementModeBtn" data-build="settlement">
+              <span class="build-art house-art">⌂</span>
+              <span><b>開拓地</b><small>🌲 1　🧱 1　🌾 1　🐑 1</small></span>
+              <em>建てる</em>
+            </button>
+            <button class="build-card" id="cityModeBtn" data-build="city">
+              <span class="build-art city-art">♜</span>
+              <span><b>都市へ発展</b><small>🌾 2　⛏ 3</small></span>
+              <em>発展</em>
+            </button>
+            <button class="build-card" id="buyDevBtn" data-build="development">
+              <span class="build-art">✦</span>
+              <span><b>発展カード</b><small>🌾 1　🐑 1　⛏ 1</small></span>
+              <em>購入 <span id="devDeckCount"></span></em>
+            </button>
+            <button class="dev-play-btn" id="playDevBtn">発展カードを使う <span id="devCount">0枚</span></button>
+            <div class="dev-cards-list" id="onlineDevList"><small>発展カードはまだありません</small></div>
           </div>
         </section>
-        <aside>
-          <section><h2>プレイヤー</h2><div id="onlinePlayers"></div><button id="addBotBtn" hidden>＋NPC追加</button><button id="startOnlineBtn" hidden>ゲーム開始</button><small class="lobby-hint" id="lobbyHint"></small></section>
-          <section><h2>あなたの手札</h2><div class="online-hand" id="onlineHand"></div></section>
-          <section><h2>交換を提案</h2>
-            <label>相手<select id="tradeTo"></select></label>
-            <div class="trade-line"><select id="onlineGive"></select><input id="onlineGiveAmount" type="number" min="1" value="1"><b>⇄</b><select id="onlineGet"></select><input id="onlineGetAmount" type="number" min="1" value="1"></div>
-            <button id="offerOnlineTrade">交換を送る</button><div id="tradeOffers"></div>
-          </section>
-          <section><h2>銀行・港と交換</h2>
-            <div class="bank-line"><select id="bankGive"></select><span class="bank-rate" id="bankRate">4:1</span><b>→</b><select id="bankGet"></select><button id="bankTradeBtn">交換</button></div>
-            <small class="lobby-hint" id="bankHarbors"></small>
-          </section>
-          <section><h2>発展カード</h2>
-            <button id="buyDevBtn">発展カードを買う <small>🌾1 🐑1 ⛏1</small> <span id="devDeckCount"></span></button>
-            <div class="dev-list" id="onlineDevList"></div>
-          </section>
-          <p class="notice" id="onlineNotice"></p>
-        </aside>
-      </div>
-    </section>
-  </main>
-  <div class="modal-overlay" id="robberConfirmOverlay" hidden>
-    <div class="modal-card">
-      <h3>♟ 盗賊を置く</h3>
-      <p>この土地に盗賊を置きますか？</p>
-      <button id="robberConfirmBtn">✓ 確定</button>
-      <button class="cancel-link" id="robberCancelBtn">← 置き直す</button>
+
+        <!-- Player trade -->
+        <section class="panel trade-panel">
+          <div class="panel-heading"><h2>プレイヤーと交換</h2><span>通話モード</span></div>
+          <div class="player-trade">
+            <label class="trade-target-label">交換相手<select id="tradeTo" aria-label="交換相手"></select></label>
+            <div class="flex-trade" id="flexTrade"></div>
+            <div class="trade-actions">
+              <button class="quick-trade-btn" id="offerOnlineTrade">選んだ相手に提案</button>
+              <button class="quick-trade-btn trade-all-btn" id="offerAllTrade">全員に提案</button>
+            </div>
+            <small class="trade-hint">渡す資源ともらう資源を自由に組み合わせて提案できます。相手が承認すると交換が成立します。</small>
+          </div>
+        </section>
+
+        <!-- Bank trade -->
+        <section class="panel trade-panel bank-panel">
+          <div class="panel-heading"><h2>銀行・港と交換</h2><span id="bankRate">4 : 1</span></div>
+          <div class="trade-row">
+            <select id="bankGive" aria-label="渡す資源"></select>
+            <span>→</span>
+            <select id="bankGet" aria-label="もらう資源"></select>
+            <button id="bankTradeBtn">交換</button>
+          </div>
+          <small class="my-harbors" id="bankHarbors"></small>
+        </section>
+
+      </aside>
+    </main>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ===== DICE OVERLAY (same as offline) ===== -->
+  <div class="offline-dice-overlay" id="diceOverlay" aria-hidden="true">
+    <div class="offline-dice-card">
+      <small id="diceOverlayPlayer">DICE ROLL</small>
+      <div class="offline-dice-values"><b id="diceOverlayA">1</b><b id="diceOverlayB">1</b></div>
+      <strong id="diceOverlayTotal">合計 2</strong>
     </div>
   </div>
+
+  <!-- ===== MODALS ===== -->
+  <!-- Discard -->
   <div class="modal-overlay" id="discardOverlay" hidden>
     <div class="modal-card">
-      <h3>7! 手札を捨てる</h3>
+      <h3>7！ 手札を捨てる</h3>
       <p id="discardSub"></p>
       <div class="discard-grid" id="discardGrid"></div>
       <button id="discardConfirmBtn">捨てる</button>
     </div>
   </div>
+  <!-- Steal -->
   <div class="modal-overlay" id="stealOverlay" hidden>
     <div class="modal-card">
       <h3>誰から奪う？</h3>
       <div class="steal-grid" id="stealGrid"></div>
     </div>
   </div>
+  <!-- Plenty -->
   <div class="modal-overlay" id="plentyOverlay" hidden>
     <div class="modal-card">
       <h3>発見：資源を2枚もらう</h3>
@@ -92,6 +204,7 @@
       <button class="cancel-link" id="plentyCancelBtn">↩ やめる</button>
     </div>
   </div>
+  <!-- Monopoly -->
   <div class="modal-overlay" id="monopolyOverlay" hidden>
     <div class="modal-card">
       <h3>独占：資源を1種選ぶ</h3>
@@ -100,13 +213,16 @@
       <button class="cancel-link" id="monopolyCancelBtn">↩ やめる</button>
     </div>
   </div>
-  <div class="dice-overlay" id="diceOverlay" aria-hidden="true">
-    <div class="dice-overlay-card">
-      <small id="diceOverlayPlayer">DICE ROLL</small>
-      <div class="dice-overlay-values"><b id="diceOverlayA">1</b><b id="diceOverlayB">1</b></div>
-      <strong id="diceOverlayTotal">合計 2</strong>
+  <!-- Incoming Trade -->
+  <div class="modal-overlay" id="incomingTradeOverlay" hidden>
+    <div class="modal-card">
+      <h3>🤝 交換の提案が届きました</h3>
+      <p id="incomingTradeText" style="font-size:15px;margin:12px 0"></p>
+      <button id="incomingTradeAccept">承認する ✓</button>
+      <button class="cancel-link" id="incomingTradeReject">断る ✕</button>
     </div>
   </div>
+
   <script src="online.js"></script>
 </body>
 </html>
