@@ -54,16 +54,23 @@
 .trade-hint{display:block;margin-top:8px;font-size:10px;color:#84908b;line-height:1.4}
 .my-harbors{display:block;margin-top:6px;font-size:10px;color:#7c8983}
 
+/* ===== Layout override: online は page-scroll 方式 ===== */
+/* styles.css の main{height:calc(100vh-150px)} が media-query の height:auto を
+   上書きして game-stage を 20px に潰すため、ここで解除する */
+main{height:auto!important}
+.sidebar{height:auto!important;overflow-y:visible!important}
+.game-stage{min-height:0!important;overflow:visible!important}
+
 /* ===== Board (SVG inside board-wrap) ===== */
-#onlineBoardSvg{display:block;width:700px;height:660px;max-width:none}
-/* game-stage must not collapse — SVG is block, not position:absolute like offline */
-.game-stage{min-height:720px!important}
-.board-wrap{overflow:auto;height:auto!important}
-@media(max-width:760px){
-  .game-stage{min-height:420px!important}
-  .board-wrap{height:380px!important;overflow:auto}
-  #onlineBoardSvg{transform:scale(0.54);transform-origin:top left;width:700px;height:660px}
-}
+/* board-wrap を block にすることで SVG の height:auto が viewBox から正しく計算される */
+.board-wrap{display:block!important;height:auto!important;overflow:visible;padding:4px 0}
+#onlineBoardSvg{display:block;width:min(700px,100%);margin:0 auto}
+
+/* ===== ターンバナー・アクションバーをフローに戻す ===== */
+/* 絶対配置だと game-stage の高さに影響しないため、online では static に */
+.turn-banner{position:static!important;margin:10px 14px 4px}
+.action-bar{position:static!important;bottom:auto!important;right:auto!important;transform:none!important;flex-direction:row;margin:8px 14px;justify-content:center}
+.zoom-controls{position:absolute;right:12px;bottom:12px}
 
 /* ===== Modals ===== */
 .modal-overlay{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;background:#102e28cc;backdrop-filter:blur(6px);padding:20px}
@@ -87,5 +94,4 @@
 /* ===== Responsive ===== */
 @media(max-width:650px){
   .topbar-online{display:none}
-  #onlineBoardSvg{height:550px}
 }

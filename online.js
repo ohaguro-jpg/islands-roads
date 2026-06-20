@@ -427,6 +427,7 @@ function render(){
   renderTurnBanner();
   renderDice();
   renderBoard();
+  fitSvg();
   renderBank();
   renderDev();
   renderBuildButtons();
@@ -451,6 +452,18 @@ function render(){
   // Winner
   if(g.winner!=null) toast(`🎉 ${state.players[g.winner].name}の勝利！`);
 }
+
+// ===== SVG SIZING =====
+// aspect-ratio CSS は SVG 要素でブラウザに無視されるため JS で計算する
+function fitSvg(){
+  const svg=$('#onlineBoardSvg');
+  if(svgScale!==1) return; // zoom が明示サイズを管理
+  const bw=document.querySelector('.board-wrap');
+  const w=Math.min(700, bw ? bw.clientWidth : window.innerWidth);
+  svg.style.width=w+'px';
+  svg.style.height=Math.round(w*660/700)+'px';
+}
+window.addEventListener('resize', fitSvg);
 
 // ===== ZOOM =====
 function applyZoom(){
