@@ -2441,6 +2441,28 @@ function seafarersRulesHtml() {
     <p><b>🏴‍☠️ 海賊：</b>海では盗賊のかわりに<b>海賊</b>が動きます。7を出すか騎士を使うと、盗賊（陸）か海賊（海）のどちらを動かすか選べます。海賊のいる海域では船を建設できず、その海域に面した相手から資源を1枚奪えます。</p>
   </div>`;
 }
+function heroesRulesHtml() {
+  const mine = state?.players?.[0]?.hero ? HEROES.find(h => h.id === state.players[0].hero) : null;
+  return `<div class="rules-seafarers">
+    <p class="rules-expansion-title">✦ 拡張：英雄の伝説（クロードオリジナル）</p>
+    <p>ゲーム開始時、各プレイヤーに<b>固有の英雄</b>が1人ランダムで配られます。英雄の能力は<b>ゲーム中ずっと自動で発動</b>する常時効果です。プレイヤー名の横に英雄バッジが表示されます。</p>
+    ${mine ? `<p class="rules-my-hero">あなたの英雄：<b>${mine.icon} ${mine.name}</b><br>${mine.desc}</p>` : ''}
+    <ul class="rules-hero-list">
+      ${HEROES.map(h => `<li><b>${h.icon} ${h.name}</b>：${h.desc}</li>`).join('')}
+    </ul>
+    <p><small>※ 英雄能力は最初に配られた1つで固定。交換や変更はできません。</small></p>
+  </div>`;
+}
+function barbariansRulesHtml() {
+  return `<div class="rules-seafarers">
+    <p class="rules-expansion-title">🏴 拡張：蛮族の来襲（シティ＆ナイト風 簡易版）</p>
+    <p><b>⏳ 侵攻のタイミング：</b>手番が進むごとに蛮族船が前進し、<b>${BARBARIAN_STEPS}ターンごと</b>に上陸して全プレイヤーの<b>都市</b>を襲います。サイドバーの蛮族トラックで残りターンを確認できます。</p>
+    <p><b>⚔ 防衛の判定：</b>上陸時、<b>全員が使った騎士カードの合計</b>と、<b>盤上の都市の合計数</b>を比べます。</p>
+    <p><b>✅ 騎士 ≧ 都市 → 撃退成功：</b>勝利点が最も高いプレイヤーが<b>発展カードを1枚</b>もらえます。</p>
+    <p><b>❌ 騎士 ＜ 都市 → 防衛失敗：</b>そのラウンドで<b>騎士を1枚も使っていないプレイヤー</b>の都市が1つ開拓地に格下げされます（−1点）。</p>
+    <p><small>※ ポイント：騎士カードは盗賊対策だけでなく<b>都市を守る盾</b>にもなります。都市を増やすほど蛮族に狙われやすいので、騎士とのバランスが大切です。都市が1つも無いときは被害ゼロ。</small></p>
+  </div>`;
+}
 $('#rulesBtn').onclick = () => {
   $('#modalContent').innerHTML = `<h2>遊び方</h2><div class="rules-list">
     <p><b>🎯 目的：</b>最初に<b>10勝利点</b>に到達したプレイヤーの勝ちです。開拓地は1点、都市は2点。さらに最長交易路・最大騎士力・勝利点カードでも点が入ります。</p>
@@ -2458,6 +2480,8 @@ $('#rulesBtn').onclick = () => {
     <p><b>🦹 7と盗賊：</b>7が出ると手札8枚以上の人は半分を捨てます。振った人は盗賊を動かし、その土地に接する相手から1枚奪います。盗賊のいる土地は資源を産出しません。</p>
     <p><b>🛣 最長交易路：</b>連続5本以上の街道${state.expansion === 'seafarers' ? '・船' : ''}を最も長く繋いだ人が<b>＋2点</b>。</p>
     ${state.expansion === 'seafarers' ? seafarersRulesHtml() : ''}
+    ${gameConfig.expansionHeroes ? heroesRulesHtml() : ''}
+    ${gameConfig.expansionBarbarians ? barbariansRulesHtml() : ''}
     <p><b>🤖 NPCの強さ：</b>開始画面で「やさしい／ふつう／強い」を選べます。強いほど街道を賢く伸ばし、発展カードを積極的に使います${state.expansion === 'seafarers' ? '（船で新しい島も目指します）' : ''}。</p>
     <p><b>🔒 勝利点の表示：</b>あなたの合計点だけが表示され、他プレイヤーの点数は伏せられます（ゲーム終了時に公開）。</p>
   </div>`;
@@ -2532,6 +2556,23 @@ $('#startGameBtn').onclick = () => {
   setAudioEnabled(gameConfig.music);
   newGame();
   soundEffect('turn');
+  // 拡張を選んで始めたら、その拡張のルールを最初に表示する
+  if (gameConfig.expansion === 'seafarers' || gameConfig.expansionHeroes || gameConfig.expansionBarbarians) {
+    showExpansionIntro();
+  }
 };
+
+// 選んだ拡張のルールだけをまとめてモーダル表示する
+function showExpansionIntro() {
+  const parts = [];
+  if (gameConfig.expansion === 'seafarers') parts.push(seafarersRulesHtml());
+  if (gameConfig.expansionHeroes) parts.push(heroesRulesHtml());
+  if (gameConfig.expansionBarbarians) parts.push(barbariansRulesHtml());
+  if (!parts.length) return;
+  $('#modalContent').innerHTML = `<h2>拡張ルールの遊び方</h2>
+    <p style="color:#74817c;font-size:13px;margin:-4px 0 6px">選んだ拡張のルールです。「遊び方」ボタンからいつでも見直せます。</p>
+    <div class="rules-list">${parts.join('')}</div>`;
+  $('#modal').showModal();
+}
 
 newGame();

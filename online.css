@@ -77,7 +77,7 @@ main{height:auto!important}
 
 /* ===== Board (SVG inside board-wrap) ===== */
 .board-wrap{display:block!important;height:auto!important;overflow:visible;padding:4px 0;position:relative}
-#onlineBoardSvg{display:block;width:min(700px,100%);margin:0 auto;touch-action:none}
+#onlineBoardSvg{display:block;width:min(700px,100%);margin:0 auto;touch-action:none;background:radial-gradient(ellipse 60% 58% at 50% 50%,#7fb3b8,#4d8a92);border-radius:26px}
 
 /* ===== ターンバナー・アクションバーをフローに戻す ===== */
 /* 絶対配置だと game-stage の高さに影響しないため、online では static に */
