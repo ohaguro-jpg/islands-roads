@@ -264,7 +264,7 @@ function updateLongestRoad(game) {
 
 function createRoom(name, boardMode, expansion, difficulty) {
   const code = roomCode();
-  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: ['easy','hard'].includes(difficulty) ? difficulty : 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [] };
+  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: ['easy','hard'].includes(difficulty) ? difficulty : 'normal', botSpeed: 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [] };
   rooms.set(code, room);
   return { room, identity: addPlayer(room, name) };
 }
@@ -279,8 +279,9 @@ function addPlayer(room, name) {
   return { playerId: player.id, token: player.token, roomCode: room.code };
 }
 
-function startRoom(room, playerId, fillBots = false) {
+function startRoom(room, playerId, fillBots = false, difficulty = null) {
   if (room.host !== playerId) throw new Error('ホストだけが開始できます');
+  if (difficulty) room.difficulty = ['easy','hard'].includes(difficulty) ? difficulty : 'normal';
   if (fillBots) while (room.players.length < 4) room.players.push({ id: room.players.length, name: `NPC ${room.players.length}`, color: COLORS[room.players.length], token: token(), connected: true, isBot: true });
   if (room.players.length < 2) throw new Error('2人以上必要です。1人の場合はNPCを追加して開始してください');
   const seafarers = room.expansion === 'seafarers';
@@ -306,7 +307,7 @@ function scheduleRoomBot(room) {
   const game = room.game;
   if (room.phase !== 'game' || !game || game.winner != null || !room.players[game.turn]?.isBot) return;
   const player = game.turn;
-  const delay = game.stage.startsWith('setup') ? 240 : 550;
+  const delay = game.stage.startsWith('setup') ? 200 : (room.botSpeed === 'fast' ? 200 : room.botSpeed === 'slow' ? 1500 : 550);
   room.botTimer = setTimeout(() => {
     try {
       if (game.stage === 'setup-settlement') {
@@ -344,6 +345,38 @@ function scheduleRoomBot(room) {
   }, delay);
 }
 
+function scheduleIdleCheck(room) {
+  clearTimeout(room.idleTimer);
+  const game = room.game;
+  if (room.phase !== 'game' || !game || game.winner != null || room.players[game.turn]?.isBot) return;
+  const player = game.turn;
+  room.idleTimer = setTimeout(() => {
+    try {
+      if (game.turn !== player || game.winner != null) return;
+      if (game.stage === 'setup-settlement') {
+        const v = game.vertices.find(item => validSettlement(game, item.id, player, true));
+        if (v) act(room, player, 'placeSettlement', { vertex: v.id });
+      } else if (game.stage === 'setup-road') {
+        const e = game.edges.find(item => validRoad(game, item.id, player, game.setupVertex));
+        if (e) act(room, player, 'placeRoad', { edge: e.id });
+      } else if (game.stage === 'roll') {
+        act(room, player, 'roll');
+      } else if (game.stage === 'build') {
+        act(room, player, 'endTurn');
+      } else if (game.stage === 'robber') {
+        const candidates = game.tiles.filter(t => t.id !== game.robberTile);
+        act(room, player, 'moveRobber', { tile: candidates[crypto.randomInt(candidates.length)].id });
+      } else if (game.stage === 'steal' && game.stealOptions?.length) {
+        act(room, player, 'steal', { victim: game.stealOptions[0] });
+      } else if (game.stage === 'discard' && game.discard?.[player] != null) {
+        const hand = game.hands[player], needed = game.discard[player], sel = {};
+        let rem = needed;
+        for (const r of [...RESOURCES].sort((a, b) => hand[b] - hand[a])) { const n = Math.min(hand[r], rem); if (n > 0) { sel[r] = n; rem -= n; } if (!rem) break; }
+        act(room, player, 'discard', { resources: sel });
+      }
+    } catch (e) { console.error('Idle auto-action failed:', e.message); }
+  }, 60000);
+}
 function adjacentVertices(game, vertex) { return game.edges.filter(edge => edge.a === vertex || edge.b === vertex).map(edge => edge.a === vertex ? edge.b : edge.a); }
 function validSettlement(game, vertex, player, setup = false) {
   if (!game.vertices[vertex] || game.buildings[vertex]) return false;
@@ -587,13 +620,13 @@ function act(room, player, type, payload = {}) {
 }
 
 function publicState(room, playerId) {
-  const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
+  const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, difficulty: room.difficulty, botSpeed: room.botSpeed, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
   return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, harborEdges: game.harborEdges, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, longestRoadOwner: game.longestRoadOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, devPlayed: game.devPlayed[playerId], offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
 }
 function findIdentity(room, authToken) { return authToken ? room.players.find(player => player.token === authToken && !player.isBot) : null; }
-function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); }
+function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); scheduleIdleCheck(room); }
 function broadcast(room) {
   room.clients.forEach(client => {
     try { client.response.write(`event: state\ndata: ${JSON.stringify(publicState(room, client.playerId))}\n\n`); } catch { room.clients.delete(client); }
@@ -631,7 +664,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
       const body = await readBody(request); const result = createRoom(body.name, body.boardMode, null, body.difficulty); return json(response, 201, result.identity);
     }
-    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot))?$/);
+    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot|settings))?$/);
     if (match) {
       const room = rooms.get(match[1]); if (!room) return json(response, 404, { error: 'ルームが見つかりません' });
       const operation = match[2] || 'state';
@@ -650,6 +683,12 @@ const server = http.createServer(async (request, response) => {
         response.write(`event: state\ndata: ${JSON.stringify(publicState(room, player.id))}\n\n`);
         const client = { response, playerId: player.id }; room.clients.add(client); request.on('close', () => room.clients.delete(client)); return;
       }
+      if (operation === 'settings' && request.method === 'POST') {
+        if (room.host !== player.id) throw new Error('ホストだけが設定できます');
+        const body = await readBody(request);
+        if (['fast','normal','slow'].includes(body.botSpeed)) room.botSpeed = body.botSpeed;
+        touch(room); return json(response, 200, { ok: true });
+      }
       if (operation === 'addbot' && request.method === 'POST') {
         if (room.host !== player.id) throw new Error('ホストだけがNPCを追加できます');
         if (room.phase !== 'lobby') throw new Error('ゲームはすでに開始しています');
@@ -658,7 +697,7 @@ const server = http.createServer(async (request, response) => {
         const bot = { id: room.players.length, name: `NPC ${botNum}`, color: COLORS[room.players.length], token: token(), connected: true, isBot: true };
         room.players.push(bot); touch(room); return json(response, 200, { ok: true });
       }
-      if (operation === 'start' && request.method === 'POST') { const body = await readBody(request); startRoom(room, player.id, Boolean(body.fillBots)); return json(response, 200, { ok: true }); }
+      if (operation === 'start' && request.method === 'POST') { const body = await readBody(request); startRoom(room, player.id, Boolean(body.fillBots), body.difficulty); return json(response, 200, { ok: true }); }
       if (operation === 'action' && request.method === 'POST') { const body = await readBody(request); act(room, player.id, body.type, body.payload); return json(response, 200, { ok: true }); }
     }
     const requested = url.pathname === '/' ? '/index.html' : url.pathname;

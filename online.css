@@ -27,6 +27,9 @@
 .topbar-invite-btn:hover{background:#f0ece0}
 .topbar-offline-link{font-size:10px;color:#7d8984;text-decoration:none}
 .topbar-offline-link:hover{text-decoration:underline}
+.topbar-reconnect{font-size:10px;font-weight:800;background:#9a4f3a;color:white;border:0;border-radius:6px;padding:5px 10px;cursor:pointer}
+.topbar-gear{font-size:16px;background:none;border:none;cursor:pointer;padding:4px 6px;color:#47705c;border-radius:6px}
+.topbar-gear:hover{background:#f0ece0}
 
 /* ===== Sidebar online extras ===== */
 #lobbyPanel .player-row{grid-template-columns:30px 1fr}
@@ -34,6 +37,14 @@
 #startOnlineBtn{background:#17372f;color:white}
 #addBotBtn{background:white;border:1px solid #d4cfc1!important;color:#17372f}
 .lobby-hint{display:block;margin-top:8px;font-size:11px;color:#7c8983}
+.lobby-diff-label{display:grid;gap:4px;font-size:10px;font-weight:800;margin-top:10px}
+.lobby-diff-label select{padding:7px;border:1px solid #d4cfc1;border-radius:6px;background:white;font:inherit;font-size:12px}
+
+/* ===== Settings modal ===== */
+.settings-speed-btns{display:flex;gap:8px;margin:16px 0}
+.settings-speed-btns button{flex:1;padding:10px 6px;border:1px solid #d4cfc1;border-radius:8px;background:#fff;cursor:pointer;font:inherit;font-size:12px;font-weight:700;transition:background .1s}
+.settings-speed-btns button.selected{background:#17372f;color:white;border-color:#17372f}
+.settings-speed-btns button:disabled{opacity:.4;cursor:not-allowed}
 
 /* ===== Notice ===== */
 .notice{padding:6px 14px;font-size:11px;color:#47705c;min-height:20px;margin:0}
@@ -65,9 +76,8 @@ main{height:auto!important}
 .game-stage{min-height:0!important;overflow:visible!important}
 
 /* ===== Board (SVG inside board-wrap) ===== */
-/* board-wrap を block にすることで SVG の height:auto が viewBox から正しく計算される */
-.board-wrap{display:block!important;height:auto!important;overflow:visible;padding:4px 0}
-#onlineBoardSvg{display:block;width:min(700px,100%);margin:0 auto}
+.board-wrap{display:block!important;height:auto!important;overflow:visible;padding:4px 0;position:relative}
+#onlineBoardSvg{display:block;width:min(700px,100%);margin:0 auto;touch-action:none}
 
 /* ===== ターンバナー・アクションバーをフローに戻す ===== */
 /* 絶対配置だと game-stage の高さに影響しないため、online では static に */

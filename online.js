@@ -46,7 +46,8 @@ function connect(){
     $('#connectionStatus').textContent = '● 同期中';
     render();
   });
-  source.onerror = ()=>{ $('#connectionStatus').textContent = '再接続中…'; };
+  source.onerror = ()=>{ $('#connectionStatus').textContent = '切断'; $('#reconnectBtn').hidden=false; };
+  source.addEventListener('open', ()=>{ $('#connectionStatus').textContent='● 同期中'; $('#reconnectBtn').hidden=true; });
 }
 async function action(type, payload={}){
   try{ await request(`/api/rooms/${session.roomCode}/action`, {method:'POST', body:JSON.stringify({type, payload})}); message(''); }
@@ -139,9 +140,12 @@ function renderBoard(){
       svg.append(piece);
     } else {
       const avail=isAvailableVertex(vertex.id);
-      const node=el('circle',{cx:vertex.x,cy:vertex.y,r:avail?10:5,class:`node ${avail?'available':''}`});
-      node.onclick=()=>avail&&action('placeSettlement',{vertex:vertex.id});
-      svg.append(node);
+      svg.append(el('circle',{cx:vertex.x,cy:vertex.y,r:avail?13:5,class:`node ${avail?'available':''}`}));
+      if(avail){
+        const hit=el('circle',{cx:vertex.x,cy:vertex.y,r:20,fill:'transparent',style:'cursor:pointer'});
+        hit.onclick=()=>action('placeSettlement',{vertex:vertex.id});
+        svg.append(hit);
+      }
     }
   });
   // Robber
@@ -392,6 +396,9 @@ function renderLobby(){
     lobbyPanel.hidden=false;
     $('#lobbyStatus').textContent=`${state.players.length}/4`;
     $('#onlinePlayers').innerHTML=state.players.map(p=>`<div class="player-row"><div class="avatar" style="background:${p.color}">${p.name[0]}</div><div class="player-name"><b>${p.name}${p.id===state.you?' 👤':p.isBot?' NPC':''}</b></div></div>`).join('');
+    const diffWrap=$('#lobbyDiffWrap');
+    diffWrap.hidden=!isHost;
+    if(isHost && state.difficulty) $('#lobbyDifficulty').value=state.difficulty;
     $('#addBotBtn').hidden=!isHost||state.players.length>=4;
     $('#startOnlineBtn').hidden=!isHost;
     $('#startOnlineBtn').textContent=state.players.length<2?'NPCを追加して開始':'ゲーム開始';
@@ -478,13 +485,36 @@ $('#createRoomBtn').onclick=createRoom;
 $('#joinRoomBtn').onclick=()=>joinRoom(false);
 $('#rejoinBtn').onclick=()=>joinRoom(true);
 $('#startOnlineBtn').onclick=async()=>{
-  try{ await request(`/api/rooms/${session.roomCode}/start`,{method:'POST',body:JSON.stringify({fillBots:state.players.length<2})}); }
+  const diff=$('#lobbyDifficulty')?.value||'normal';
+  try{ await request(`/api/rooms/${session.roomCode}/start`,{method:'POST',body:JSON.stringify({fillBots:state.players.length<2,difficulty:diff})}); }
   catch(e){ message(e.message,true); }
 };
 $('#addBotBtn').onclick=async()=>{
   try{ await request(`/api/rooms/${session.roomCode}/addbot`,{method:'POST'}); message(''); }
   catch(e){ message(e.message,true); }
 };
+
+// Reconnect
+$('#reconnectBtn').onclick=()=>{ $('#reconnectBtn').hidden=true; connect(); };
+
+// Gear: NPC speed settings
+function updateSettingsModal(){
+  const speed=state?.botSpeed||'normal';
+  const isHost=state?.host===state?.you;
+  $$('[data-speed]').forEach(btn=>{
+    btn.classList.toggle('selected',btn.dataset.speed===speed);
+    btn.disabled=!isHost;
+  });
+  $('#settingsHostNote').textContent=isHost?'':'ホストのみ変更できます';
+}
+$('#gearBtn').onclick=()=>{ $('#settingsOverlay').hidden=false; updateSettingsModal(); };
+$('#settingsCloseBtn').onclick=()=>{ $('#settingsOverlay').hidden=true; };
+$$('[data-speed]').forEach(btn=>{
+  btn.onclick=async()=>{
+    try{ await request(`/api/rooms/${session.roomCode}/settings`,{method:'POST',body:JSON.stringify({botSpeed:btn.dataset.speed})}); updateSettingsModal(); }
+    catch(e){ toast(e.message); }
+  };
+});
 
 // Game actions
 $('#rollOnlineBtn').onclick=()=>action('roll');

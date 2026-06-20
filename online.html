@@ -51,8 +51,10 @@
       </div>
       <div class="topbar-online">
         <span id="connectionStatus" class="conn-pill">接続中…</span>
+        <button id="reconnectBtn" class="topbar-reconnect" hidden>再接続</button>
         <b id="roomCode" class="room-code-badge">-----</b>
         <button id="copyRoomBtn" class="topbar-invite-btn">招待リンクをコピー</button>
+        <button id="gearBtn" class="topbar-gear" title="NPC設定">⚙</button>
         <a class="topbar-offline-link" href="offline.html">オフライン版</a>
       </div>
     </header>
@@ -101,6 +103,15 @@
         <section class="panel" id="lobbyPanel" hidden>
           <div class="panel-heading"><h2>ロビー</h2><span id="lobbyStatus"></span></div>
           <div id="onlinePlayers"></div>
+          <div id="lobbyDiffWrap" hidden>
+            <label class="lobby-diff-label">NPCの強さ
+              <select id="lobbyDifficulty">
+                <option value="easy">やさしい</option>
+                <option value="normal" selected>ふつう</option>
+                <option value="hard">強い</option>
+              </select>
+            </label>
+          </div>
           <button id="addBotBtn" hidden>＋NPC追加</button>
           <button id="startOnlineBtn" hidden>ゲーム開始</button>
           <small class="lobby-hint" id="lobbyHint"></small>
@@ -220,6 +231,21 @@
       <p id="incomingTradeText" style="font-size:15px;margin:12px 0"></p>
       <button id="incomingTradeAccept">承認する ✓</button>
       <button class="cancel-link" id="incomingTradeReject">断る ✕</button>
+    </div>
+  </div>
+
+  <!-- Settings (gear) modal -->
+  <div class="modal-overlay" id="settingsOverlay" hidden>
+    <div class="modal-card">
+      <h3>⚙ NPC設定</h3>
+      <p>NPCが行動するスピードを変更します。ゲーム中いつでも変更できます。</p>
+      <div class="settings-speed-btns">
+        <button data-speed="slow">🐢 ゆっくり</button>
+        <button data-speed="normal">🚶 ふつう</button>
+        <button data-speed="fast">🏃 はやい</button>
+      </div>
+      <small id="settingsHostNote" style="display:block;margin-top:8px;color:#84908b;font-size:11px"></small>
+      <button class="cancel-link" id="settingsCloseBtn">閉じる</button>
     </div>
   </div>
 
