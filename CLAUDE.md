@@ -5,7 +5,8 @@
 Browser board game inspired by Catan. The primary development target is the
 offline game. Keep it fully playable before porting changes to online mode.
 
-- Offline UI: `index.html`, `app.js`, `styles.css`, `trade.css`
+- Landing page: `index.html` (モード選択画面)
+- Offline UI: `offline.html`, `app.js`, `styles.css`, `trade.css`
 - Online UI: `online.html`, `online.js`, `online.css`, `online-map.css`
 - Online server/game state: `server.js`
 - No build step and no third-party runtime dependencies
@@ -18,7 +19,8 @@ npm start
 
 Open:
 
-- Offline game: `http://localhost:4180/index.html`
+- Landing page: `http://localhost:4180/` or `http://localhost:4180/index.html`
+- Offline game: `http://localhost:4180/offline.html`
 - Online game: `http://localhost:4180/online.html`
 
 Always use the HTTP URLs. Do not test through `file://`, because that does not

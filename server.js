@@ -661,7 +661,7 @@ const server = http.createServer(async (request, response) => {
       if (operation === 'start' && request.method === 'POST') { const body = await readBody(request); startRoom(room, player.id, Boolean(body.fillBots)); return json(response, 200, { ok: true }); }
       if (operation === 'action' && request.method === 'POST') { const body = await readBody(request); act(room, player.id, body.type, body.payload); return json(response, 200, { ok: true }); }
     }
-    const requested = url.pathname === '/' ? '/online.html' : url.pathname;
+    const requested = url.pathname === '/' ? '/index.html' : url.pathname;
     const file = path.normalize(path.join(ROOT, requested));
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return json(response, 404, { error: 'Not found' });
     response.writeHead(200, { 'content-type': `${mime(file)}; charset=utf-8`, 'cache-control': 'no-cache' });

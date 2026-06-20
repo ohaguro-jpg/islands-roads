@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISLANDS & ROADS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="trade.css" />
+</head>
+<body>
+  <div class="start-screen" id="startScreen">
+    <div class="start-card">
+      <span class="start-kicker">ISLANDS & ROADS</span>
+      <h1>島へ出発しよう</h1>
+      <p>プレイヤー設定を決めてゲームを始めます。</p>
+      <label class="start-field">あなたの名前
+        <input id="playerNameInput" maxlength="12" value="あなた" placeholder="名前を入力" />
+      </label>
+      <fieldset class="start-options player-count-options">
+        <legend>人間プレイヤーの人数（あなたを含む）</legend>
+        <label><input type="radio" name="humanCount" value="1" checked><span><b>1人</b><small>あなた＋NPC</small></span></label>
+        <label><input type="radio" name="humanCount" value="2"><span><b>2人</b><small>友だちと2人＋NPC</small></span></label>
+        <label><input type="radio" name="humanCount" value="3"><span><b>3人</b><small>3人＋NPC</small></span></label>
+        <label><input type="radio" name="humanCount" value="4"><span><b>4人</b><small>4人で対戦</small></span></label>
+      </fieldset>
+      <div class="extra-names" id="extraNames" hidden>
+        <label class="start-field">プレイヤー2の名前<input id="humanName2" maxlength="12" placeholder="プレイヤー2" /></label>
+        <label class="start-field">プレイヤー3の名前<input id="humanName3" maxlength="12" placeholder="プレイヤー3" /></label>
+        <label class="start-field">プレイヤー4の名前<input id="humanName4" maxlength="12" placeholder="プレイヤー4" /></label>
+      </div>
+      <p class="npc-hint" id="npcHint">NPC ×3 が参加します（合計4人）</p>
+      <fieldset class="start-options">
+        <legend>盤面</legend>
+        <label><input type="radio" name="boardMode" value="default" checked><span><b>デフォルト</b><small>毎回同じ、遊びやすい配置</small></span></label>
+        <label><input type="radio" name="boardMode" value="random"><span><b>ランダム</b><small>土地と数字が毎回変わる</small></span></label>
+      </fieldset>
+      <fieldset class="start-options">
+        <legend>NPCの強さ</legend>
+        <label><input type="radio" name="difficulty" value="easy"><span><b>やさしい</b><small>控えめに動く初心者向け</small></span></label>
+        <label><input type="radio" name="difficulty" value="normal" checked><span><b>ふつう</b><small>バランスよく建設する</small></span></label>
+        <label><input type="radio" name="difficulty" value="hard"><span><b>強い</b><small>街道を伸ばし発展カードを活用</small></span></label>
+      </fieldset>
+      <fieldset class="start-options">
+        <legend>NPCの速さ</legend>
+        <label><input type="radio" name="botSpeed" value="slow"><span><b>ゆっくり</b><small>動きをじっくり確認できる</small></span></label>
+        <label><input type="radio" name="botSpeed" value="normal" checked><span><b>ふつう</b><small>標準的なテンポ</small></span></label>
+        <label><input type="radio" name="botSpeed" value="fast"><span><b>はやい</b><small>サクサク進む</small></span></label>
+      </fieldset>
+      <fieldset class="start-options">
+        <legend>勝利条件（勝利点）</legend>
+        <label><input type="radio" name="targetScore" value="10" checked><span><b>10点</b><small>標準・短め</small></span></label>
+        <label><input type="radio" name="targetScore" value="15"><span><b>15点</b><small>じっくり</small></span></label>
+        <label><input type="radio" name="targetScore" value="20"><span><b>20点</b><small>長期戦・NPC戦向き</small></span></label>
+      </fieldset>
+      <fieldset class="start-options future-options">
+        <legend>拡張機能</legend>
+        <label><input type="checkbox" checked disabled><span><b>基本ゲーム</b><small>3〜4人用</small></span></label>
+        <label><input type="checkbox" id="expansionSeafarers"><span><b>航海者たち</b><small>船・金鉱・新しい島を追加</small></span></label>
+        <label><input type="checkbox" id="expansionHeroes"><span><b>✦ 英雄の伝説</b><small>各プレイヤーが固有の英雄能力を持つ（クロードオリジナル）</small></span></label>
+        <label><input type="checkbox" id="expansionBarbarians"><span><b>🏴 蛮族の来襲</b><small>7ターンごとに蛮族が侵攻（都市と騎士 簡易版）</small></span></label>
+      </fieldset>
+      <label class="music-choice"><input type="checkbox" id="startMusic"> BGM・効果音をオン</label>
+      <button class="start-button" id="startGameBtn">ゲームを始める</button>
+      <a class="online-switch" href="online.html">🌐 オンラインで友達と対戦する</a>
+    </div>
+  </div>
+  <div class="pass-screen hidden" id="passScreen" style="display:none">
+    <div class="pass-card">
+      <span class="pass-kicker">手番の交代</span>
+      <div class="pass-avatar" id="passAvatar">P</div>
+      <h2 id="passName">プレイヤー</h2>
+      <p id="passSubtitle">準備ができたらボタンを押してください。</p>
+      <button class="pass-confirm" id="passConfirmBtn">✋ 自分です・手札を見る</button>
+      <small>ほかの人に手札が見えないよう、端末を渡してから押してね</small>
+    </div>
+  </div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-players">
+        <div id="playersList"></div>
+        <span id="roundLabel" class="round-pill">ROUND 1</span>
+      </div>
+    </header>
+    <div class="hand-bar">
+      <span class="hand-bar-label" id="handLabel">あなたの手札</span>
+      <div class="resource-grid" id="resourceGrid"></div>
+      <span class="hand-bar-count" id="cardCount">0 CARDS</span>
+    </div>
+
+    <main>
+      <section class="game-stage">
+        <div class="setup-guide" id="setupGuide" hidden>
+          <b id="setupGuideTitle">開拓地を置こう</b>
+          <span id="setupGuideText">盤面の黄色い丸を押してください</span>
+        </div>
+        <div class="turn-banner">
+          <span class="turn-dot" id="turnDot"></span>
+          <div><small>現在のターン</small><strong id="turnName">あなた</strong></div>
+          <span class="turn-score" id="turnScore">2 VP</span>
+        </div>
+        <div class="roll-log" id="rollLog" hidden>
+          <span class="roll-log-title">ダイスの記録</span>
+          <div class="roll-log-list" id="rollLogList"></div>
+        </div>
+        <div class="board-wrap">
+          <div id="board" class="board" aria-label="ゲーム盤"></div>
+          <div class="compass"><span>N</span><b>✦</b></div>
+          <div class="zoom-controls">
+            <button id="zoomIn">＋</button><button id="zoomOut">−</button>
+          </div>
+        </div>
+        <div class="action-bar">
+          <button class="cancel-card-btn" id="cancelCardBtn" hidden>↩ やっぱりやめる</button>
+          <button class="primary-action" id="rollBtn"><span class="dice-icon">⚄</span><span><small>アクション</small>ダイスを振る</span></button>
+          <div class="dice-result" id="diceResult"><span>—</span><span>—</span></div>
+          <button class="end-turn" id="endTurnBtn" disabled>ターン終了 →</button>
+        </div>
+        <button class="npc-control" id="npcControlBtn" hidden>NPCを今すぐ進める →</button>
+        <div class="corner-controls">
+          <button class="cc-btn cc-newgame" id="newGameBtn">新しいゲーム</button>
+          <a class="cc-btn cc-online" href="online.html">🌐 オンライン対戦</a>
+          <button class="cc-btn cc-rules" id="rulesBtn">遊び方</button>
+          <div class="cc-icons">
+            <button class="cc-icon" id="soundBtn" title="効果音オン・オフ">♪</button>
+            <button class="cc-icon" id="bgmBtn" title="BGMを切り替え">♫</button>
+            <button class="cc-icon" id="fullscreenBtn" title="全画面表示">⛶</button>
+          </div>
+        </div>
+        <div class="robber-confirm-overlay" id="robberConfirmOverlay" style="display:none">
+          <span class="robber-confirm-hint">♟ この土地に盗賊を置く？</span>
+          <button class="robber-confirm-btn" onclick="confirmRobberPlacement()">✓ 確定</button>
+          <button class="robber-cancel-btn" onclick="cancelRobberPlacement()">← 置き直す</button>
+        </div>
+        <div class="robber-confirm-overlay" id="pirateConfirmOverlay" style="display:none">
+          <span class="robber-confirm-hint">⛵ この海域に海賊を置く？</span>
+          <button class="robber-confirm-btn" onclick="confirmPiratePlacement()">✓ 確定</button>
+          <button class="robber-cancel-btn" onclick="cancelPiratePlacement()">← 置き直す</button>
+        </div>
+      </section>
+      <aside class="sidebar">
+        <section class="panel barb-panel" id="barbPanel" hidden>
+          <div class="panel-heading">
+            <h2>🏴 蛮族の来襲</h2>
+            <span id="barbInfo">あと 7 ターン</span>
+          </div>
+          <div class="barb-track" id="barbTrack"></div>
+          <small class="barb-hint">騎士カード合計 ≥ 都市数で撃退。撃退成功→首位者が発展カード獲得、失敗→騎士なしプレイヤーの都市が破壊</small>
+        </section>
+        <section class="panel build-panel">
+          <div class="panel-heading"><h2>建設</h2><span>コスト</span></div>
+          <div class="build-options">
+            <button class="build-card" data-build="road">
+              <span class="build-art road-art"></span><span><b>街道</b><small>🌲 1　🧱 1</small></span><em>建てる</em>
+            </button>
+            <button class="build-card" data-build="ship" id="shipBuildBtn">
+              <span class="build-art">⛵</span><span><b>船</b><small>🌲 1　🐑 1</small></span><em>建てる</em>
+            </button>
+            <button class="build-card" data-build="settlement">
+              <span class="build-art house-art">⌂</span><span><b>開拓地</b><small>🌲 1　🧱 1　🌾 1　🐑 1</small></span><em>建てる</em>
+            </button>
+            <button class="build-card" data-build="city">
+              <span class="build-art city-art">♜</span><span><b>都市へ発展</b><small>🌾 2　⛏ 3</small></span><em>発展</em>
+            </button>
+            <button class="build-card" data-build="development">
+              <span class="build-art">✦</span><span><b>発展カード</b><small>🌾 1　🐑 1　⛏ 1</small></span><em>購入</em>
+            </button>
+            <button class="dev-play-btn" id="playDevBtn">発展カードを使う <span id="devCount">0枚</span></button>
+            <button class="ship-move-btn" id="moveShipBtn">⛵ 船を移動（1ターン1回）</button>
+            <div class="dev-cards-list" id="devCardsList"><small>発展カードはまだありません</small></div>
+          </div>
+        </section>
+
+        <section class="panel trade-panel">
+          <div class="panel-heading"><h2>プレイヤーと交換</h2><span>通話モード</span></div>
+          <div class="player-trade">
+            <label class="trade-target-label">交換相手<select id="playerTradeTarget" aria-label="交換相手"></select></label>
+            <div class="flex-trade" id="flexTrade"></div>
+            <div class="trade-actions">
+              <button class="quick-trade-btn" id="playerTradeBtn">選んだ相手に提案</button>
+              <button class="quick-trade-btn trade-all-btn" id="playerTradeAllBtn">全員に提案</button>
+            </div>
+            <small class="trade-hint">渡す資源ともらう資源を自由に組み合わせて提案できます（例：🌾1＋⛏1 → 🐑1）。NPCは手札と建設計画を見て返事します。</small>
+          </div>
+        </section>
+
+        <section class="panel trade-panel bank-panel">
+          <div class="panel-heading"><h2>銀行・港と交換</h2><span id="bankRate">4 : 1</span></div>
+          <div class="trade-row">
+            <select id="tradeGive" aria-label="渡す資源"></select><span>→</span><select id="tradeGet" aria-label="もらう資源"></select>
+            <button id="tradeBtn">交換</button>
+          </div>
+          <small class="my-harbors" id="myHarbors"></small>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="offline-dice-overlay" id="offlineDiceOverlay" aria-hidden="true">
+    <div class="offline-dice-card">
+      <small id="offlineDicePlayer">DICE ROLL</small>
+      <div class="offline-dice-values"><b id="offlineDiceA">1</b><b id="offlineDiceB">1</b></div>
+      <strong id="offlineDiceTotal">合計 2</strong>
+    </div>
+  </div>
+  <dialog id="modal">
+    <button class="modal-close" id="modalClose">×</button>
+    <div id="modalContent"></div>
+  </dialog>
+  <script src="app.js"></script>
+</body>
+</html>
