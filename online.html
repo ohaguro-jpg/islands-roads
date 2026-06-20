@@ -30,6 +30,9 @@
         <section class="board-panel">
           <div class="turn-info" id="turnInfo">参加者を待っています</div>
           <div class="board-viewport"><svg id="onlineBoardSvg" viewBox="0 0 700 660" aria-label="オンラインゲーム盤"></svg></div>
+          <div class="online-zoom-controls">
+            <button id="onlineZoomIn">＋</button><button id="onlineZoomOut">−</button>
+          </div>
           <div class="actions">
             <button id="rollOnlineBtn">🎲 ダイスを振る</button>
             <span id="onlineDice">—</span>
@@ -58,6 +61,14 @@
       </div>
     </section>
   </main>
+  <div class="modal-overlay" id="robberConfirmOverlay" hidden>
+    <div class="modal-card">
+      <h3>♟ 盗賊を置く</h3>
+      <p>この土地に盗賊を置きますか？</p>
+      <button id="robberConfirmBtn">✓ 確定</button>
+      <button class="cancel-link" id="robberCancelBtn">← 置き直す</button>
+    </div>
+  </div>
   <div class="modal-overlay" id="discardOverlay" hidden>
     <div class="modal-card">
       <h3>7! 手札を捨てる</h3>

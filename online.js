@@ -1,7 +1,7 @@
 const ICONS={wood:'🌲',brick:'🧱',wheat:'🌾',sheep:'🐑',ore:'⛏'};
 const TYPE_ICON={forest:'🌲',hills:'🧱',pasture:'🐑',fields:'🌾',mountains:'⛰',desert:'☀'};
 let session=JSON.parse(localStorage.getItem('islands-online-session')||'null');
-let state=null,source=null,buildMode=null,lastDiceSignature=null,diceOverlayTimer=null;
+let state=null,source=null,buildMode=null,lastDiceSignature=null,diceOverlayTimer=null,pendingRobberTile=null,svgScale=1;
 const $=selector=>document.querySelector(selector);
 const svgNS='http://www.w3.org/2000/svg';
 
@@ -42,7 +42,7 @@ function renderBoard(){const g=state.game,svg=$('#onlineBoardSvg');svg.innerHTML
   g.edges.forEach(edge=>{const a=g.vertices[edge.a],b=g.vertices[edge.b],owner=g.roads[edge.id];if(owner!=null){svg.append(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'road-outline'}));svg.append(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'road',style:`stroke:${state.players[owner].color};stroke-width:11px`}))}const hit=el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'edge-hit'});if(isAvailableEdge(edge))hit.setAttribute('stroke','#ffd24f');hit.onclick=()=>isAvailableEdge(edge)&&action('placeRoad',{edge:edge.id});svg.append(hit)});
   g.vertices.forEach(vertex=>{const building=g.buildings[vertex.id];if(building){const color=state.players[building.player].color;const points=building.type==='city'?`${vertex.x-12},${vertex.y+12} ${vertex.x-12},${vertex.y-5} ${vertex.x},${vertex.y-16} ${vertex.x+7},${vertex.y-8} ${vertex.x+15},${vertex.y-8} ${vertex.x+15},${vertex.y+12}`:`${vertex.x-13},${vertex.y+11} ${vertex.x-13},${vertex.y-4} ${vertex.x},${vertex.y-16} ${vertex.x+13},${vertex.y-4} ${vertex.x+13},${vertex.y+11}`;const piece=el('polygon',{points,class:'building',style:`fill:${color}`});piece.onclick=()=>buildMode==='city'&&action('buildCity',{vertex:vertex.id});svg.append(piece)}else{const avail=isAvailableVertex(vertex.id);const node=el('circle',{cx:vertex.x,cy:vertex.y,r:avail?10:5,class:`node ${avail?'available':''}`});node.onclick=()=>avail&&action('placeSettlement',{vertex:vertex.id});svg.append(node)}});
   const robber=g.tiles[g.robberTile];svg.append(el('circle',{cx:robber.x,cy:robber.y-34,r:13,class:'robber'}));
-  if(g.stage==='robber'&&g.turn===state.you){g.tiles.forEach(tile=>{if(tile.id===g.robberTile)return;const p=el('polygon',{points:hexPoints(tile.x,tile.y),class:'robber-target'});p.onclick=()=>action('moveRobber',{tile:tile.id});svg.append(p)})}
+  if(g.stage==='robber'&&g.turn===state.you){g.tiles.forEach(tile=>{if(tile.id===g.robberTile)return;const p=el('polygon',{points:hexPoints(tile.x,tile.y),class:'robber-target'});p.onclick=()=>setPendingRobber(tile.id);svg.append(p)})}
 }
 
 function renderPlayers(){const g=state.game;$('#onlinePlayers').innerHTML=state.players.map(p=>`<div class="online-player ${g&&g.turn===p.id?'active':''}"><i style="background:${p.color}"></i><span>${p.name}${p.id===state.you?' (あなた)':''}${p.isBot?' NPC':''}${g&&g.largestArmyOwner===p.id?' <b class="army-badge">⚔</b>':''}${g&&g.longestRoadOwner===p.id?' <b class="road-badge">🛣</b>':''}<small>${g?`手札${g.cardCounts[p.id]} · 騎士${g.playedKnights[p.id]}${g.devCounts[p.id]?` · 発展${g.devCounts[p.id]}`:''}`:p.connected?' 参加中':' 切断'}</small></span><b>${g?g.vp[p.id]:''} VP</b></div>`).join('');$('#tradeTo').innerHTML=state.players.filter(p=>p.id!==state.you).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
@@ -113,6 +113,13 @@ $('#rollOnlineBtn').onclick=()=>action('roll');$('#endOnlineBtn').onclick=()=>ac
 ['road','settlement','city'].forEach(mode=>$(`#${mode}ModeBtn`).onclick=()=>{buildMode=buildMode===mode?null:mode;document.querySelectorAll('.actions button').forEach(b=>b.classList.remove('selected'));if(buildMode)$(`#${mode}ModeBtn`).classList.add('selected');renderBoard()});
 $('#offerOnlineTrade').onclick=()=>action('offerTrade',{to:+$('#tradeTo').value,give:$('#onlineGive').value,giveAmount:+$('#onlineGiveAmount').value,get:$('#onlineGet').value,getAmount:+$('#onlineGetAmount').value});
 $('#discardGrid').oninput=updateDiscardTotal;$('#discardConfirmBtn').onclick=submitDiscard;
+function setPendingRobber(tileId){pendingRobberTile=tileId;$('#robberConfirmOverlay').hidden=false;}
+function confirmRobber(){$('#robberConfirmOverlay').hidden=true;action('moveRobber',{tile:pendingRobberTile});pendingRobberTile=null;}
+function cancelRobber(){$('#robberConfirmOverlay').hidden=true;pendingRobberTile=null;}
+$('#robberConfirmBtn').onclick=confirmRobber;$('#robberCancelBtn').onclick=cancelRobber;
+function applyZoom(){const svg=$('#onlineBoardSvg');svg.style.width=`${Math.round(700*svgScale)}px`;svg.style.height=`${Math.round(660*svgScale)}px`;}
+$('#onlineZoomIn').onclick=()=>{svgScale=Math.min(1.5,+(svgScale+0.1).toFixed(1));applyZoom();};
+$('#onlineZoomOut').onclick=()=>{svgScale=Math.max(0.6,+(svgScale-0.1).toFixed(1));applyZoom();};
 
 async function copyInvite(){
   const link=`${location.origin}/online.html?room=${session.roomCode}`;
