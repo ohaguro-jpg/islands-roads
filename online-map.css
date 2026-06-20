@@ -55,6 +55,9 @@
 .tile-num-text.hot{fill:#b83c1c}
 .edge-hit{stroke:transparent;stroke-width:18;cursor:pointer;fill:none}
 .road{stroke-linecap:round;paint-order:stroke}
+/* styles.css の .node{transform:translate(-50%,-50%)}（オフラインのHTML駒用）が
+   SVGの円にも漏れて座標がズレるため、SVG内の駒では transform を打ち消す */
+#onlineBoardSvg .node,#onlineBoardSvg .node.available,#onlineBoardSvg .building,#onlineBoardSvg .robber{transform:none!important}
 .node{fill:#fff8;stroke:#17372f55;stroke-width:2;cursor:pointer}
 .node.available{fill:#ffd24f;stroke:white;stroke-width:4}
 .building{stroke:white;stroke-width:3}
