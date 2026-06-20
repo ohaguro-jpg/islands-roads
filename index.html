@@ -59,7 +59,8 @@
         <legend>拡張機能</legend>
         <label><input type="checkbox" checked disabled><span><b>基本ゲーム</b><small>3〜4人用</small></span></label>
         <label><input type="checkbox" id="expansionSeafarers"><span><b>航海者たち</b><small>船・金鉱・新しい島を追加</small></span></label>
-        <label class="coming"><input type="checkbox" disabled><span><b>都市と騎士</b><small>今後追加予定</small></span></label>
+        <label><input type="checkbox" id="expansionHeroes"><span><b>✦ 英雄の伝説</b><small>各プレイヤーが固有の英雄能力を持つ（クロードオリジナル）</small></span></label>
+        <label><input type="checkbox" id="expansionBarbarians"><span><b>🏴 蛮族の来襲</b><small>7ターンごとに蛮族が侵攻（都市と騎士 簡易版）</small></span></label>
       </fieldset>
       <label class="music-choice"><input type="checkbox" id="startMusic"> BGM・効果音をオン</label>
       <button class="start-button" id="startGameBtn">ゲームを始める</button>
@@ -140,6 +141,14 @@
         </div>
       </section>
       <aside class="sidebar">
+        <section class="panel barb-panel" id="barbPanel" hidden>
+          <div class="panel-heading">
+            <h2>🏴 蛮族の来襲</h2>
+            <span id="barbInfo">あと 7 ターン</span>
+          </div>
+          <div class="barb-track" id="barbTrack"></div>
+          <small class="barb-hint">騎士カード合計 ≥ 都市数で撃退。撃退成功→首位者が発展カード獲得、失敗→騎士なしプレイヤーの都市が破壊</small>
+        </section>
         <section class="panel build-panel">
           <div class="panel-heading"><h2>建設</h2><span>コスト</span></div>
           <div class="build-options">

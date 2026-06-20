@@ -8,10 +8,19 @@ const ROOT = __dirname;
 const rooms = new Map();
 const COLORS = ['#c95642', '#3d7181', '#d9a838', '#577b59'];
 const RESOURCES = ['wood', 'brick', 'wheat', 'sheep', 'ore'];
-const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 } };
+const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 }, ship: { wood: 1, sheep: 1 } };
 const TYPES = ['forest','forest','forest','forest','hills','hills','hills','pasture','pasture','pasture','pasture','fields','fields','fields','fields','mountains','mountains','mountains','desert'];
-const TYPE_RESOURCE = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null };
+const TYPE_RESOURCE = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, sea: null, gold: null };
 const NUMBERS = [5,2,6,3,8,10,9,12,11,4,8,10,9,4,5,6,3,11];
+// Seafarers expansion: radius-3 board with sea, gold fields, and two discovery islands
+const ISLAND_BONUS_VP = 1;
+const SEA_HEX_SIZE = 52;
+const SEAFARERS_HOME = new Set(['-1,-1','0,-1','1,-1','-1,0','0,0','1,0','-1,1','0,1','1,1']);
+const SEAFARERS_DISC1 = new Set(['1,-3','2,-3','3,-3','3,-2']);
+const SEAFARERS_DISC2 = new Set(['-3,2','-3,3','-2,3']);
+const SEAFARERS_TILE_TYPES = ['fields','hills','forest','pasture','mountains','fields','pasture','forest','desert','mountains','hills','forest','gold','pasture','fields','gold'];
+const SEAFARERS_TILE_NUMBERS = [9,6,4,3,12,10,8,5,null,2,11,8,5,9,6,10];
+const LAND_TYPES = new Set(['forest','hills','pasture','fields','mountains','desert','gold']);
 
 function shuffle(values) {
   const result = [...values];
@@ -81,6 +90,126 @@ function buildGeometry(random = true) {
   }
   return { tiles, vertices, edges, harbors, harborEdges };
 }
+
+// Seafarers: radius-3 board, sea + gold tiles, home island + two discovery islands.
+function buildSeafarersGeometry(random = false) {
+  const S = SEA_HEX_SIZE, HS = S * 1.5, VS = S * Math.sqrt(3), CX = 350, CY = 335;
+  const coords = [];
+  for (let r = -3; r <= 3; r++) for (let q = Math.max(-3, -r - 3); q <= Math.min(3, -r + 3); q++) coords.push({ q, r });
+  const landTypes = random ? shuffle([...SEAFARERS_TILE_TYPES]) : [...SEAFARERS_TILE_TYPES];
+  const landNumbers = [...SEAFARERS_TILE_NUMBERS];
+  let landIndex = 0;
+  const tiles = coords.map((coord, id) => {
+    const key = `${coord.q},${coord.r}`;
+    const island = SEAFARERS_HOME.has(key) ? 0 : SEAFARERS_DISC1.has(key) ? 1 : SEAFARERS_DISC2.has(key) ? 2 : null;
+    const isSea = island === null;
+    const x = Math.round(CX + HS * coord.q);
+    const y = Math.round(CY + VS * (coord.r + coord.q / 2));
+    const type = isSea ? 'sea' : landTypes[landIndex];
+    const number = isSea ? null : landNumbers[landIndex];
+    if (!isSea) landIndex++;
+    return { id, q: coord.q, r: coord.r, x, y, type, number, island, vertices: [] };
+  });
+  const vertexMap = new Map();
+  const vertices = [];
+  tiles.forEach((tile, tileId) => {
+    for (let corner = 0; corner < 6; corner++) {
+      const angle = Math.PI / 3 * corner;
+      const x = Math.round(tile.x + S * Math.cos(angle));
+      const y = Math.round(tile.y + S * Math.sin(angle));
+      const key = `${x},${y}`;
+      let id = vertexMap.get(key);
+      if (id == null) { id = vertices.length; vertexMap.set(key, id); vertices.push({ id, x, y, tiles: [] }); }
+      vertices[id].tiles.push(tileId);
+      tile.vertices.push(id);
+    }
+  });
+  const edgeMap = new Map();
+  const edges = [];
+  tiles.forEach(tile => tile.vertices.forEach((a, corner) => {
+    const b = tile.vertices[(corner + 1) % 6];
+    const key = [a, b].sort((x, y) => x - y).join('-');
+    if (!edgeMap.has(key)) { edgeMap.set(key, edges.length); edges.push({ id: edges.length, a, b }); }
+  }));
+  // Harbors sit on coastal edges (land↔sea boundary)
+  const coastal = edges.map(edge => {
+    const shared = vertices[edge.a].tiles.filter(t => vertices[edge.b].tiles.includes(t));
+    const types = shared.map(t => tiles[t].type);
+    if (!types.some(t => LAND_TYPES.has(t)) || !types.includes('sea')) return null;
+    const mx = (vertices[edge.a].x + vertices[edge.b].x) / 2, my = (vertices[edge.a].y + vertices[edge.b].y) / 2;
+    return { edge, angle: Math.atan2(my - CY, mx - CX) };
+  }).filter(Boolean).sort((a, b) => a.angle - b.angle);
+  const harborTypes = random ? shuffle([null, null, null, null, 'wood', 'brick', 'wheat', 'sheep', 'ore']) : [null, 'wood', null, 'brick', null, 'wheat', 'sheep', null, 'ore'];
+  const harbors = {};
+  const harborEdges = [];
+  const usedVertices = new Set();
+  const count = Math.min(9, coastal.length);
+  for (let i = 0; i < count; i++) {
+    const target = Math.floor(i * coastal.length / count);
+    let offset = 0;
+    while (offset < coastal.length && [coastal[(target + offset) % coastal.length].edge.a, coastal[(target + offset) % coastal.length].edge.b].some(v => usedVertices.has(v))) offset++;
+    const edge = coastal[(target + offset) % coastal.length].edge;
+    usedVertices.add(edge.a); usedVertices.add(edge.b);
+    harbors[edge.a] = harborTypes[i]; harbors[edge.b] = harborTypes[i];
+    harborEdges.push({ a: edge.a, b: edge.b, type: harborTypes[i] });
+  }
+  return { tiles, vertices, edges, harbors, harborEdges, hexSize: S, expansion: 'seafarers' };
+}
+
+function isSeaEdge(game, edgeId) {
+  const edge = game.edges[edgeId];
+  const shared = game.vertices[edge.a].tiles.filter(t => game.vertices[edge.b].tiles.includes(t));
+  return shared.some(t => game.tiles[t].type === 'sea');
+}
+function isLandVertex(game, vertex) { return game.vertices[vertex].tiles.some(t => LAND_TYPES.has(game.tiles[t].type)); }
+function shipConnected(game, edgeId, player) {
+  const edge = game.edges[edgeId];
+  return [edge.a, edge.b].some(vertex => {
+    const building = game.buildings[vertex];
+    if (building && building.player !== player) return false;
+    if (building?.player === player) return true;
+    return game.edges.some(item => item.id !== edgeId && (item.a === vertex || item.b === vertex) && game.ships[item.id] === player);
+  });
+}
+function validShip(game, edgeId, player) {
+  if (game.expansion !== 'seafarers') return false;
+  const edge = game.edges[edgeId];
+  if (!edge || game.ships[edgeId] != null || game.roads[edgeId] != null) return false;
+  if (!isSeaEdge(game, edgeId)) return false;
+  if (game.pirateTile != null) {
+    const adjacent = game.vertices[edge.a].tiles.filter(t => game.vertices[edge.b].tiles.includes(t));
+    if (adjacent.includes(game.pirateTile)) return false;
+  }
+  return shipConnected(game, edgeId, player);
+}
+function isMovableShip(game, edgeId, player) {
+  if (game.ships[edgeId] !== player) return false;
+  if ((game.shipsBuiltThisTurn || []).includes(Number(edgeId))) return false;
+  const edge = game.edges[edgeId];
+  return [edge.a, edge.b].some(vertex => {
+    if (game.buildings[vertex]) return false;
+    return !game.edges.some(other => other.id !== Number(edgeId) && (other.a === vertex || other.b === vertex) && game.ships[other.id] === player);
+  });
+}
+function grantIslandDiscovery(game, vertex, player) {
+  if (game.expansion !== 'seafarers') return;
+  game.vertices[vertex].tiles.forEach(tileId => {
+    const island = game.tiles[tileId]?.island;
+    if (island == null || island === 0 || game.islandSettlers[island] != null) return;
+    game.islandSettlers[island] = player;
+    game.islandVP[player] = (game.islandVP[player] || 0) + ISLAND_BONUS_VP;
+  });
+}
+function pirateVictims(game, tile, roller) {
+  const set = new Set();
+  game.edges.forEach(edge => {
+    if (game.ships[edge.id] == null || game.ships[edge.id] === roller) return;
+    const shared = game.vertices[edge.a].tiles.filter(t => game.vertices[edge.b].tiles.includes(t));
+    if (shared.includes(tile) && handTotal(game.hands[game.ships[edge.id]]) > 0) set.add(game.ships[edge.id]);
+  });
+  return [...set];
+}
+
 function maritimeRate(game, player, resource) {
   let rate = 4;
   for (const [vertex, type] of Object.entries(game.harbors || {})) {
@@ -91,7 +220,7 @@ function maritimeRate(game, player, resource) {
 }
 function victoryCards(game, player) { return [...game.dev[player], ...game.newDev[player]].filter(c => c === 'victory').length; }
 // 表示用の勝利点（建物＋最長交易路＋最大騎士力。隠れた勝利点カードは含めない）
-function visibleVP(game, player) { return game.vp[player] + (game.longestRoadOwner === player ? 2 : 0) + (game.largestArmyOwner === player ? 2 : 0); }
+function visibleVP(game, player) { return game.vp[player] + (game.longestRoadOwner === player ? 2 : 0) + (game.largestArmyOwner === player ? 2 : 0) + ((game.islandVP && game.islandVP[player]) || 0); }
 // 勝敗判定用の総勝利点（勝利点カードも含む）
 function totalVP(game, player) { return visibleVP(game, player) + victoryCards(game, player); }
 function updateArmy(game) {
@@ -101,19 +230,26 @@ function updateArmy(game) {
 }
 
 function longestRoadLength(game, player) {
-  const owned = game.edges.filter(e => game.roads[e.id] === player);
-  function walk(vertex, used) {
+  // Seafarers: roads + ships count together but only connect through a settlement (not edge-to-edge)
+  const seafarers = game.expansion === 'seafarers';
+  const owned = game.edges.filter(e => game.roads[e.id] === player || (seafarers && game.ships[e.id] === player));
+  function walk(vertex, used, lastWasShip) {
     if (used.size > 0 && game.buildings[vertex] && game.buildings[vertex].player !== player) return used.size;
     let best = used.size;
     for (const e of owned) {
       if (used.has(e.id) || (e.a !== vertex && e.b !== vertex)) continue;
+      const isShip = seafarers && game.ships[e.id] === player;
+      if (seafarers && used.size > 0 && isShip !== lastWasShip) {
+        const building = game.buildings[vertex];
+        if (!building || building.player !== player) continue;
+      }
       const next = e.a === vertex ? e.b : e.a;
-      used.add(e.id); best = Math.max(best, walk(next, used)); used.delete(e.id);
+      used.add(e.id); best = Math.max(best, walk(next, used, isShip)); used.delete(e.id);
     }
     return best;
   }
   let best = 0;
-  for (const v of game.vertices) best = Math.max(best, walk(v.id, new Set()));
+  for (const v of game.vertices) best = Math.max(best, walk(v.id, new Set(), false));
   return best;
 }
 function updateLongestRoad(game) {
@@ -126,9 +262,9 @@ function updateLongestRoad(game) {
   } else game.longestRoadOwner = null;
 }
 
-function createRoom(name, boardMode) {
+function createRoom(name, boardMode, expansion) {
   const code = roomCode();
-  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', players: [], version: 1, clients: new Set(), game: null, offers: [] };
+  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, players: [], version: 1, clients: new Set(), game: null, offers: [] };
   rooms.set(code, room);
   return { room, identity: addPlayer(room, name) };
 }
@@ -147,17 +283,20 @@ function startRoom(room, playerId, fillBots = false) {
   if (room.host !== playerId) throw new Error('ホストだけが開始できます');
   if (fillBots) while (room.players.length < 4) room.players.push({ id: room.players.length, name: `NPC ${room.players.length}`, color: COLORS[room.players.length], token: token(), connected: true, isBot: true });
   if (room.players.length < 2) throw new Error('2人以上必要です。1人の場合はNPCを追加して開始してください');
-  const geometry = buildGeometry(room.boardMode === 'random');
+  const seafarers = room.expansion === 'seafarers';
+  const geometry = seafarers ? buildSeafarersGeometry(room.boardMode === 'random') : buildGeometry(room.boardMode === 'random');
   const order = [...room.players.map(player => player.id), ...room.players.map(player => player.id).reverse()];
   room.phase = 'game';
   room.game = {
     ...geometry, turn: order[0], round: 0, stage: 'setup-settlement', setupOrder: order, setupIndex: 0, setupVertex: null,
-    rolled: false, dice: null, buildings: {}, roads: {}, robberTile: geometry.tiles.find(tile => tile.type === 'desert').id,
+    rolled: false, dice: null, buildings: {}, roads: {}, ships: {}, robberTile: geometry.tiles.find(tile => tile.type === 'desert').id,
     bank: Object.fromEntries(RESOURCES.map(resource => [resource, 19])),
     hands: room.players.map(() => emptyResources()), vp: room.players.map(() => 0), winner: null,
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
     dev: room.players.map(() => []), newDev: room.players.map(() => []), playedKnights: room.players.map(() => 0),
-    devPlayed: room.players.map(() => false), freeRoads: 0, largestArmyOwner: null, longestRoadOwner: null
+    devPlayed: room.players.map(() => false), freeRoads: 0, largestArmyOwner: null, longestRoadOwner: null,
+    expansion: seafarers ? 'seafarers' : null, pirateTile: null, islandSettlers: {}, islandVP: room.players.map(() => 0),
+    goldPick: {}, shipsBuiltThisTurn: [], movedShipThisTurn: false
   };
   touch(room);
 }
@@ -208,12 +347,15 @@ function scheduleRoomBot(room) {
 function adjacentVertices(game, vertex) { return game.edges.filter(edge => edge.a === vertex || edge.b === vertex).map(edge => edge.a === vertex ? edge.b : edge.a); }
 function validSettlement(game, vertex, player, setup = false) {
   if (!game.vertices[vertex] || game.buildings[vertex]) return false;
+  if (game.expansion === 'seafarers' && !isLandVertex(game, vertex)) return false;
   if (adjacentVertices(game, vertex).some(id => game.buildings[id])) return false;
-  return setup || game.edges.some(edge => (edge.a === vertex || edge.b === vertex) && game.roads[edge.id] === player);
+  if (setup) return true;
+  return game.edges.some(edge => (edge.a === vertex || edge.b === vertex) && (game.roads[edge.id] === player || game.ships[edge.id] === player));
 }
 function validRoad(game, edgeId, player, setupVertex = null) {
   const edge = game.edges[edgeId];
   if (!edge || game.roads[edgeId] != null) return false;
+  if (game.expansion === 'seafarers' && isSeaEdge(game, edgeId)) return false; // roads are land-only
   if (setupVertex != null) return edge.a === setupVertex || edge.b === setupVertex;
   return [edge.a, edge.b].some(vertex => {
     const building = game.buildings[vertex];
@@ -225,7 +367,29 @@ function canPay(game, player, type) { return Object.entries(COSTS[type]).every((
 function pay(game, player, type) { Object.entries(COSTS[type]).forEach(([resource, amount]) => { game.hands[player][resource] -= amount; game.bank[resource] += amount; }); }
 function pieceCount(game, player, type) {
   if (type === 'road') return Object.values(game.roads).filter(owner => owner === player).length;
+  if (type === 'ship') return Object.values(game.ships).filter(owner => owner === player).length;
   return Object.values(game.buildings).filter(piece => piece.player === player && piece.type === type).length;
+}
+// NPC ship valuation: reaching a settle spot or sailing toward an undiscovered island
+function islandCentroids(game) {
+  const groups = {};
+  game.tiles.forEach(tile => { if (tile.island != null && tile.island !== 0 && game.islandSettlers[tile.island] == null) (groups[tile.island] = groups[tile.island] || []).push(tile); });
+  return Object.values(groups).map(list => ({ x: list.reduce((s, t) => s + t.x, 0) / list.length, y: list.reduce((s, t) => s + t.y, 0) / list.length }));
+}
+function shipValue(game, edgeId, player) {
+  const edge = game.edges[edgeId];
+  const centroids = islandCentroids(game);
+  let best = 0;
+  [edge.a, edge.b].forEach(v => {
+    const vertex = game.vertices[v];
+    if (!game.buildings[v] && isLandVertex(game, v) && validSettlement(game, v, player, true)) {
+      let value = 2;
+      vertex.tiles.forEach(t => { const island = game.tiles[t]?.island; if (island != null && island !== 0 && game.islandSettlers[island] == null) value += 6; });
+      best = Math.max(best, value);
+    }
+    if (centroids.length) best = Math.max(best, 4 - Math.min(...centroids.map(c => Math.hypot(c.x - vertex.x, c.y - vertex.y))) / 90);
+  });
+  return best;
 }
 
 function finishSetupPair(room) {
@@ -256,12 +420,30 @@ function startSeven(room) {
   if (Object.keys(game.discard).length) { game.stage = 'discard'; } else { game.discard = null; game.stage = 'robber'; }
 }
 
-function distribute(game, sum) {
+// Seafarers: pick the resource an NPC most needs toward its next build
+function npcNeededResource(game, player) {
+  const hand = game.hands[player];
+  let bestRes = RESOURCES[0], bestScore = -Infinity;
+  RESOURCES.forEach(resource => {
+    if (game.bank[resource] < 1) return;
+    let score = 0;
+    Object.values(COSTS).forEach(cost => { if (cost[resource]) score += Math.max(0, cost[resource] - hand[resource]); });
+    score -= hand[resource] * 0.1;
+    if (score > bestScore) { bestScore = score; bestRes = resource; }
+  });
+  return bestRes;
+}
+function distribute(room, sum) {
+  const game = room.game;
   const claims = [];
+  const goldGains = {}; // player -> count of gold picks owed
   Object.entries(game.buildings).forEach(([vertex, building]) => game.vertices[vertex].tiles.forEach(tileId => {
     const tile = game.tiles[tileId];
+    if (tile.id === game.robberTile || tile.number !== sum) return;
+    const amount = building.type === 'city' ? 2 : 1;
+    if (tile.type === 'gold') { goldGains[building.player] = (goldGains[building.player] || 0) + amount; return; }
     const resource = TYPE_RESOURCE[tile.type];
-    if (tile.id !== game.robberTile && tile.number === sum && resource) claims.push({ player: building.player, resource, amount: building.type === 'city' ? 2 : 1 });
+    if (resource) claims.push({ player: building.player, resource, amount });
   }));
   RESOURCES.forEach(resource => {
     const selected = claims.filter(claim => claim.resource === resource);
@@ -269,6 +451,15 @@ function distribute(game, sum) {
     if (game.bank[resource] < total) return;
     selected.forEach(claim => game.hands[claim.player][resource] += claim.amount);
     game.bank[resource] -= total;
+  });
+  // Gold fields: NPCs auto-pick their most-needed resource; humans choose via the pickGold action
+  Object.entries(goldGains).forEach(([p, count]) => {
+    const playerId = Number(p);
+    if (room.players[playerId]?.isBot) {
+      for (let i = 0; i < count; i++) { const resource = npcNeededResource(game, playerId); if (game.bank[resource] > 0) { game.hands[playerId][resource]++; game.bank[resource]--; } }
+    } else {
+      game.goldPick[playerId] = (game.goldPick[playerId] || 0) + count;
+    }
   });
 }
 
@@ -302,7 +493,7 @@ function act(room, player, type, payload = {}) {
   } else if (type === 'roll') {
     if (game.turn !== player || game.stage !== 'roll' || game.rolled) throw new Error('今はダイスを振れません');
     const a = crypto.randomInt(1, 7), b = crypto.randomInt(1, 7); game.dice = [a, b]; game.rolled = true;
-    if (a + b === 7) startSeven(room); else { distribute(game, a + b); game.stage = 'build'; }
+    if (a + b === 7) startSeven(room); else { distribute(room, a + b); game.stage = 'build'; }
   } else if (type === 'discard') {
     if (game.stage !== 'discard' || !game.discard || game.discard[player] == null) throw new Error('今は手札を捨てる必要はありません');
     const required = game.discard[player], hand = game.hands[player], sel = payload.resources || {};

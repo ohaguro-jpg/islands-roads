@@ -146,3 +146,12 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 .edge.available.ship-movable{background:#5bc8f5;box-shadow:0 0 8px #5bc8f5}
 .rules-seafarers{margin-top:10px;padding:12px 14px;border-radius:12px;background:#eaf4f7;border:1px solid #bcd9e2}
 .rules-expansion-title{margin:0 0 6px;font-weight:800;color:#1a4a5e}
+/* Hero Pack */
+.hero-badge{background:#f0e8fc;color:#6a2d9e}
+/* Barbarian Pack */
+.barb-track{display:flex;gap:5px;margin:8px 0 6px}
+.barb-step{flex:1;height:10px;border-radius:4px;background:#e8e4da;border:1px solid #d5d0c6;transition:background .3s}
+.barb-step.filled{background:#b04030;border-color:#8a2c22}
+.barb-step.last{border-radius:4px 8px 8px 4px}
+.barb-hint{font-size:9px;color:#84908b;line-height:1.4;display:block}
+.barb-panel .panel-heading span{color:#b04030;font-weight:800}

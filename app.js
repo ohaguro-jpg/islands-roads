@@ -16,6 +16,17 @@ const NPC_NAMES = ['ミナト', 'アオイ', 'ハル', 'カイ'];
 const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 }, ship: { wood: 1, sheep: 1 } };
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 };
 const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
+// Hero Pack (Claude Original) — each player receives one passive hero ability
+const HEROES = [
+  { id: 'farmer',    icon: '🌾', name: '豊穣の農夫',   desc: '農地タイルが出るたびに隣接する建物から +1 小麦追加' },
+  { id: 'smith',     icon: '⚒',  name: '熟練の鍛冶師', desc: '都市へ発展するコストが鉱石 2（通常 3 より −1）' },
+  { id: 'merchant',  icon: '🛒', name: '旅の商人',      desc: '銀行・港との交換レートが常時 3:1' },
+  { id: 'general',   icon: '🗡',  name: '歴戦の将軍',   desc: '手札が 8 枚以下なら 7 が出ても捨て不要' },
+  { id: 'architect', icon: '🏗',  name: '天才建築家',   desc: '街道の建設コストがレンガ 1 枚のみ（木材不要）' },
+  { id: 'sage',      icon: '🔮', name: '古の賢者',      desc: '発展カード購入時に 2 枚引いて好きな 1 枚を選べる' },
+];
+// Barbarian Pack (Cities & Knights inspired) — barbarians invade every N turns
+const BARBARIAN_STEPS = 7;
 // Seafarers expansion constants
 const SEA_HEX_SIZE = 52;
 const ISLAND_BONUS_VP = 1;
@@ -225,7 +236,11 @@ function newGame() {
   for (let i = 0; i < total; i++) {
     const bot = i >= humanCount;
     const name = bot ? (NPC_NAMES[i - humanCount] || `NPC${i - humanCount + 1}`) : ((humanNames[i] || '').trim() || `プレイヤー${i + 1}`);
-    players.push({ name, color: COLORS[i % COLORS.length], bot, vp: 0, resources: emptyResources(), dev: [], newDev: [], playedKnights: 0, devPlayed: false, islandVP: 0 });
+    players.push({ name, color: COLORS[i % COLORS.length], bot, vp: 0, resources: emptyResources(), dev: [], newDev: [], playedKnights: 0, devPlayed: false, islandVP: 0, hero: null });
+  }
+  if (gameConfig.expansionHeroes) {
+    const heroPool = shuffle(HEROES.map(h => h.id));
+    players.forEach((p, i) => { p.hero = heroPool[i % HEROES.length]; });
   }
   const base = shuffle(players.map((_, i) => i));
   const setupOrder = [...base, ...[...base].reverse()];
@@ -238,7 +253,7 @@ function newGame() {
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
     gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false,
     islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null,
-    movedShipThisTurn: false, shipsBuiltThisTurn: []
+    movedShipThisTurn: false, shipsBuiltThisTurn: [], barbarianStep: 0
   };
   scale = .82;
   buildBoard();
@@ -592,9 +607,11 @@ function render() {
     const handCount = Object.values(item.resources).reduce((a, b) => a + b, 0);
     const devCount = item.dev.length + item.newDev.length;
     const stats = `手札${handCount} · 開拓地${countPieces(i, 'settlement')} · 都市${countPieces(i, 'city')} · 道${countPieces(i, 'road')} · 発展${devCount} · 騎士${item.playedKnights}`;
+    const heroData = item.hero ? HEROES.find(h => h.id === item.hero) : null;
     const badges = [
       state.longestRoadOwner === i ? '<span class="award-badge road-award">🛣 最長交易路</span>' : '',
-      state.largestArmyOwner === i ? '<span class="award-badge army-award">⚔ 最大騎士力</span>' : ''
+      state.largestArmyOwner === i ? '<span class="award-badge army-award">⚔ 最大騎士力</span>' : '',
+      heroData ? `<span class="award-badge hero-badge" title="${heroData.desc}">${heroData.icon} ${heroData.name}</span>` : ''
     ].join('');
     return `<div class="player-row ${i === state.turn ? 'active' : ''}"><span class="avatar" style="background:${item.color}">${item.name[0]}</span><span class="player-name"><b>${item.name}${isMe ? ' (YOU)' : ''}${item.bot ? ' <small class="npc-tag">NPC</small>' : ''}</b><small>${stats}</small>${badges ? `<small class="award-row">${badges}</small>` : ''}${breakdown ? `<small class="vp-breakdown">${breakdown}</small>` : ''}</span><span class="vp"><small>${state.gameOver ? '勝利点' : '最低点'}</small>${vpText}</span></div>`;
   }).join('');
@@ -705,6 +722,7 @@ function render() {
     $('#rollBtn').innerHTML = '<span class="dice-icon">⚄</span><span><small>アクション</small>ダイスを振る</span>';
   }
   updateAvailable();
+  renderBarbarian();
 }
 
 function adjacentNodes(vertex) {
@@ -719,12 +737,20 @@ function canPlaceInitialSettlement(vertex) {
   return !state.buildings[vertex] && !adjacentNodes(vertex).some(neighbor => state.buildings[neighbor]);
 }
 
+function effectiveCost(type, player) {
+  const base = { ...COSTS[type] };
+  if (!state || !state.players[player]) return base;
+  const hero = state.players[player].hero;
+  if (type === 'city' && hero === 'smith') base.ore = Math.max(0, (base.ore || 0) - 1);
+  if (type === 'road' && hero === 'architect') delete base.wood;
+  return base;
+}
 function canAfford(type, player = 0) {
-  return Object.entries(COSTS[type]).every(([resource, amount]) => state.players[player].resources[resource] >= amount);
+  return Object.entries(effectiveCost(type, player)).every(([resource, amount]) => state.players[player].resources[resource] >= amount);
 }
 
 function pay(type, player = 0) {
-  Object.entries(COSTS[type]).forEach(([resource, amount]) => {
+  Object.entries(effectiveCost(type, player)).forEach(([resource, amount]) => {
     state.players[player].resources[resource] -= amount;
     state.bank[resource] += amount;
   });
@@ -758,6 +784,7 @@ function maritimeRate(player, resource) {
     if (type === resource) rate = 2;
     else if (type == null) rate = Math.min(rate, 3);
   });
+  if (state.players[player]?.hero === 'merchant') rate = Math.min(rate, 3);
   return rate;
 }
 
@@ -1260,6 +1287,18 @@ function distributeRoll(a, b) {
       }
     });
   });
+  // Farmer hero: +1 wheat when a fields tile rolls
+  if (gameConfig.expansionHeroes) {
+    Object.entries(state.buildings).forEach(([vertex, building]) => {
+      if (state.players[building.player]?.hero !== 'farmer') return;
+      vertices[vertex].tiles.forEach(tileIndex => {
+        const tile = tiles[tileIndex];
+        if (tileIndex !== state.robberTile && tile.num === sum && tile.type === 'fields') {
+          claims.wheat.push({ player: building.player, amount: 1 });
+        }
+      });
+    });
+  }
   Object.entries(claims).forEach(([resource, requests]) => {
     const total = requests.reduce((sum, request) => sum + request.amount, 0);
     const recipients = new Set(requests.map(request => request.player));
@@ -1303,15 +1342,16 @@ function resolveSeven(roller) {
   // NPCは自動で半分を捨てる。人間は順番にダイアログで捨てる。
   state.players.forEach((player, i) => {
     if (!player.bot) return;
+    const limit = player.hero === 'general' ? 8 : 7;
     const count = handTotal(player);
-    if (count <= 7) return;
+    if (count <= limit) return;
     for (let k = 0; k < Math.floor(count / 2); k++) {
       const resource = randomOwnedResource(i);
       if (resource) { player.resources[resource]--; state.bank[resource]++; }
     }
   });
   state.sevenRoller = roller;
-  state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > 7);
+  state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > (state.players[i].hero === 'general' ? 8 : 7));
   state.resolvingSeven = true;
   render();
   processDiscardQueue();
@@ -1556,9 +1596,61 @@ function advanceTurn() {
   state.shipsBuiltThisTurn = [];
   resetFlexTrade();
   $('#diceResult').innerHTML = '<span>—</span><span>—</span>';
+  if (gameConfig.expansionBarbarians) advanceBarbarian();
   render();
   if (currentIsBot()) scheduleBotTurn();
   else { soundEffect('turn'); beginHumanTurn(`${state.players[state.turn].name}のターンです`); }
+}
+
+function advanceBarbarian() {
+  state.barbarianStep = (state.barbarianStep || 0) + 1;
+  renderBarbarian();
+  if (state.barbarianStep >= BARBARIAN_STEPS) {
+    state.barbarianStep = 0;
+    executeBarbsAttack();
+  }
+}
+
+function executeBarbsAttack() {
+  const totalKnights = state.players.reduce((sum, p) => sum + (p.playedKnights || 0), 0);
+  const totalCities = Object.values(state.buildings).filter(b => b.type === 'city').length;
+  if (totalCities === 0) { toast('🏴 蛮族が来たが、都市がないので被害なし！'); return; }
+  if (totalKnights >= totalCities) {
+    const leaderIdx = state.players.map((_, i) => i).reduce((best, i) => totalVP(i) > totalVP(best) ? i : best, 0);
+    if (state.devDeck.length) {
+      state.players[leaderIdx].newDev.push(state.devDeck.pop());
+      toast(`⚔ 蛮族撃退！${state.players[leaderIdx].name}が発展カードを獲得！`);
+    } else {
+      toast('⚔ 蛮族撃退！よく守りました！');
+    }
+  } else {
+    let victimCount = 0;
+    state.players.forEach((player, pIdx) => {
+      if (player.playedKnights > 0) return;
+      const cityEntry = Object.entries(state.buildings).find(([, b]) => b.player === pIdx && b.type === 'city');
+      if (!cityEntry) return;
+      state.buildings[cityEntry[0]].type = 'settlement';
+      state.players[pIdx].vp = Math.max(0, state.players[pIdx].vp - 1);
+      victimCount++;
+    });
+    toast(victimCount > 0 ? '🏴 蛮族の来襲！騎士なきプレイヤーの都市が破壊されました' : '🏴 蛮族の来襲！被害なし');
+  }
+  render();
+}
+
+function renderBarbarian() {
+  const panel = $('#barbPanel');
+  if (!panel) return;
+  const active = !!(gameConfig.expansionBarbarians && state && state.phase === 'play' && !state.gameOver);
+  panel.hidden = !active;
+  if (!active) return;
+  const step = state.barbarianStep || 0;
+  const barbTrack = $('#barbTrack');
+  if (barbTrack) barbTrack.innerHTML = Array.from({ length: BARBARIAN_STEPS }, (_, i) =>
+    `<span class="barb-step${i < step ? ' filled' : ''}${i === BARBARIAN_STEPS - 1 ? ' last' : ''}"></span>`
+  ).join('');
+  const barbInfo = $('#barbInfo');
+  if (barbInfo) barbInfo.textContent = `あと ${BARBARIAN_STEPS - step} ターン`;
 }
 
 function scheduleBotTurn(delay = 650) {
@@ -1692,7 +1784,7 @@ function tryBankTrade(player, wanted) {
 }
 
 function prepareCost(player, type) {
-  if (botRules().bankTrade) Object.entries(COSTS[type]).forEach(([resource, amount]) => {
+  if (botRules().bankTrade) Object.entries(effectiveCost(type, player)).forEach(([resource, amount]) => {
     while (state.players[player].resources[resource] < amount && tryBankTrade(player, resource)) {}
   });
   return canAfford(type, player);
@@ -1819,8 +1911,49 @@ function runBotActions(player) {
 function buyDevelopment(player) {
   if (!state.devDeck.length || !canAfford('development', player)) return false;
   pay('development', player);
+  if (state.players[player].hero === 'sage' && state.devDeck.length >= 2) {
+    const card1 = state.devDeck.pop();
+    const card2 = state.devDeck.pop();
+    if (state.players[player].bot) {
+      const devOrder = ['victory', 'knight', 'roadBuilding', 'plenty', 'monopoly'];
+      const kept = devOrder.indexOf(card1) <= devOrder.indexOf(card2) ? card1 : card2;
+      state.players[player].newDev.push(kept);
+      state.devDeck.unshift(kept === card1 ? card2 : card1);
+    } else {
+      showSageDialog(player, card1, card2);
+    }
+    return true;
+  }
   state.players[player].newDev.push(state.devDeck.pop());
   return true;
+}
+
+function showSageDialog(player, card1, card2) {
+  const names = { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占', victory: '勝利点' };
+  const descs = { knight: '盗賊を移動させ1枚奪う', roadBuilding: '街道を2本無料で建設', plenty: '好きな資源を2枚獲得', monopoly: '1種類を全員から独占', victory: '非公開の1勝利点' };
+  $('#modalClose').hidden = true;
+  $('#modalContent').innerHTML = `<h2>🔮 古の賢者：2枚から1枚を選ぶ</h2>
+    <p>引いた2枚のカードから1枚をキープ。もう1枚はデッキに戻ります。</p>
+    <div style="display:flex;gap:12px;margin-top:16px">
+      <button class="sage-pick" data-sage="${card1}" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
+        <b style="display:block;margin-bottom:4px">✦ ${names[card1]}</b><small>${descs[card1]}</small>
+      </button>
+      <button class="sage-pick" data-sage="${card2}" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
+        <b style="display:block;margin-bottom:4px">✦ ${names[card2]}</b><small>${descs[card2]}</small>
+      </button>
+    </div>`;
+  $('#modal').showModal();
+  $$('.sage-pick').forEach(btn => btn.onclick = () => {
+    const kept = btn.dataset.sage;
+    const returned = kept === card1 ? card2 : card1;
+    state.players[player].newDev.push(kept);
+    state.devDeck.unshift(returned);
+    $('#modal').close();
+    $('#modalClose').hidden = false;
+    render();
+    toast(`${names[kept]}カードを選びました`);
+    checkWin(player);
+  });
 }
 
 function moveRobberAndSteal(player) {
@@ -1984,9 +2117,10 @@ function updateAwards() {
 function npcResourceNeed(player, resource) {
   const plans = ['city', 'settlement', 'road', 'development'];
   return plans.reduce((score, type) => {
-    const cost = COSTS[type][resource] || 0;
+    const ec = effectiveCost(type, player);
+    const cost = ec[resource] || 0;
     if (!cost) return score;
-    const totalMissing = Object.entries(COSTS[type]).reduce((sum, [key, amount]) => sum + Math.max(0, amount - state.players[player].resources[key]), 0);
+    const totalMissing = Object.entries(ec).reduce((sum, [key, amount]) => sum + Math.max(0, amount - state.players[player].resources[key]), 0);
     return score + Math.max(0, cost - state.players[player].resources[resource]) * (4 / (1 + totalMissing));
   }, 0);
 }
@@ -2378,6 +2512,8 @@ $('#startGameBtn').onclick = () => {
     humanNames.push(($(`#humanName${i}`)?.value || '').trim() || `プレイヤー${i}`);
   }
   const expansionCheck = $('#expansionSeafarers');
+  const heroesCheck = $('#expansionHeroes');
+  const barbsCheck = $('#expansionBarbarians');
   gameConfig = {
     playerName: name || 'あなた',
     humanCount,
@@ -2388,7 +2524,9 @@ $('#startGameBtn').onclick = () => {
     botSpeed: $('input[name="botSpeed"]:checked')?.value || 'normal',
     targetScore: Number($('input[name="targetScore"]:checked')?.value) || 10,
     music: $('#startMusic').checked,
-    expansion: expansionCheck?.checked ? 'seafarers' : null
+    expansion: expansionCheck?.checked ? 'seafarers' : null,
+    expansionHeroes: heroesCheck?.checked || false,
+    expansionBarbarians: barbsCheck?.checked || false,
   };
   $('#startScreen').classList.add('hidden');
   setAudioEnabled(gameConfig.music);
