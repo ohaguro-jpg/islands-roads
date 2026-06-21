@@ -1,3 +1,13 @@
+/* ===== Server boot screen ===== */
+.boot-overlay{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 30%,#1f4a42,#0e2b26)}
+.boot-overlay[hidden]{display:none}
+.boot-card{width:min(440px,100%);text-align:center;color:#f3efe5}
+.boot-card h2{font-family:serif;font-size:24px;margin:18px 0 10px;color:#fff}
+.boot-card p{font-size:13px;line-height:1.7;color:#cfe0da;margin:0}
+.boot-card #bootStatus{display:block;margin-top:18px;font-size:12px;font-weight:800;letter-spacing:.05em;color:#f3d27a}
+.boot-spinner{width:54px;height:54px;margin:0 auto;border:5px solid #ffffff33;border-top-color:#f3d27a;border-radius:50%;animation:boot-spin 1s linear infinite}
+@keyframes boot-spin{to{transform:rotate(360deg)}}
+
 /* ===== Join Screen (lobby) ===== */
 .join-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 10%,#e1ebdb,#d4c6ae)}
 .join-card{width:min(620px,100%);padding:34px;border:1px solid #b9b2a3;border-radius:18px;background:#fcfaf4;box-shadow:0 30px 80px #193b3344}

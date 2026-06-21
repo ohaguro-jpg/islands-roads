@@ -698,6 +698,7 @@ function mime(file) { return file.endsWith('.html') ? 'text/html' : file.endsWit
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   try {
+    if (url.pathname === '/api/health') return json(response, 200, { ok: true });
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
       const body = await readBody(request); const result = createRoom(body.name, body.boardMode, null, body.difficulty); return json(response, 201, result.identity);
     }

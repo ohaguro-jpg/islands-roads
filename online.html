@@ -14,6 +14,16 @@
 </head>
 <body>
 
+  <!-- ===== SERVER BOOT SCREEN ===== -->
+  <div class="boot-overlay" id="bootOverlay" hidden>
+    <div class="boot-card">
+      <div class="boot-spinner"></div>
+      <h2>サーバーを起動しています</h2>
+      <p>無料サーバーはしばらく使われないと眠ります。<br>10〜30秒ほどで自動的に始まります。<br>少々お待ちください…</p>
+      <small id="bootStatus">起動を待っています…</small>
+    </div>
+  </div>
+
   <!-- ===== JOIN SCREEN (lobby) ===== -->
   <section class="join-screen" id="joinScreen">
     <div class="join-card">

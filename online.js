@@ -16,12 +16,50 @@ async function request(url, options={}){
   let data;
   try{ data = text ? JSON.parse(text) : {}; }
   catch{
-    // JSONでない（Render起動中のHTML待機ページや404 HTML）→ 分かりやすいエラーに変換
+    // JSONでない（Render起動中のHTML待機ページや404 HTML）
     if(response.status===404) throw new Error('ルームが見つかりません');
-    throw new Error('サーバーを起動しています。10〜30秒ほど待ってから、もう一度お試しください。');
+    showBootScreen(); // サーバー起動待ち画面を出して自動で復帰を待つ
+    throw new Error('サーバーを起動しています。少々お待ちください。');
   }
   if(!response.ok) throw new Error(data.error||'通信に失敗しました');
   return data;
+}
+
+// ===== サーバー起動待ち画面（Render無料枠のコールドスタート対策） =====
+let bootPolling = false;
+function showBootScreen(){
+  const ov = $('#bootOverlay');
+  if(!ov || !ov.hidden) { if(ov) ov.hidden=false; return; }
+  ov.hidden = false;
+  if(!bootPolling) pollServerUntilReady();
+}
+function hideBootScreen(){ const ov=$('#bootOverlay'); if(ov) ov.hidden=true; }
+async function isServerReady(){
+  try{
+    const r = await fetch('/api/health', {cache:'no-store'});
+    if(!r.ok) return false;
+    const t = await r.text();
+    return /"ok"\s*:\s*true/.test(t);
+  }catch{ return false; }
+}
+async function pollServerUntilReady(){
+  bootPolling = true;
+  let tries = 0;
+  while(true){
+    if(await isServerReady()){
+      bootPolling = false;
+      const st = $('#bootStatus'); if(st) st.textContent='起動しました！再開しています…';
+      setTimeout(()=>{
+        hideBootScreen();
+        // ゲーム中なら再接続、それ以外は join 画面のまま操作を待つ
+        if(session && document.querySelector('#gameScreen').style.display!=='none') connect();
+      }, 600);
+      return;
+    }
+    tries++;
+    const st = $('#bootStatus'); if(st) st.textContent = `起動を待っています…（${tries*3}秒）`;
+    await new Promise(r=>setTimeout(r, 3000));
+  }
 }
 function saveSession(value){ session=value; localStorage.setItem('islands-online-session',JSON.stringify(value)); }
 function showGame(){ $('#joinScreen').style.display='none'; $('#gameScreen').style.display=''; $('#roomCode').textContent=session.roomCode; connect(); }
@@ -630,6 +668,14 @@ async function copyInvite(){
 $('#copyRoomBtn').onclick=copyInvite;
 
 // Init
+// ページを開いた時点でサーバーが眠っていたら、すぐ起動待ち画面を出す
+(async()=>{
+  const ready = await Promise.race([
+    isServerReady(),
+    new Promise(r=>setTimeout(()=>r(false), 2500)) // 2.5秒で応答なければ「起動中」とみなす
+  ]);
+  if(!ready) showBootScreen();
+})();
 if(session){ $('#rejoinBtn').hidden=false; $('#rejoinBtn').textContent=`${session.roomCode}へ再参加`; }
 const invitedRoom=new URLSearchParams(location.search).get('room');
 if(invitedRoom){
