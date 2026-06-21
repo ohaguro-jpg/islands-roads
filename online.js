@@ -62,7 +62,7 @@ async function pollServerUntilReady(){
   }
 }
 function saveSession(value){ session=value; localStorage.setItem('islands-online-session',JSON.stringify(value)); }
-function showGame(){ $('#joinScreen').style.display='none'; $('#gameScreen').style.display=''; $('#roomCode').textContent=session.roomCode; connect(); }
+function showGame(){ $('#joinScreen').style.display='none'; $('#gameScreen').style.display=''; $('#roomCode').textContent=session.roomCode; connect(); startPolling(); }
 
 async function withPending(btn, label, fn){
   const original=btn.textContent; btn.disabled=true; btn.textContent=label;
@@ -133,11 +133,34 @@ function backToJoin(msg){
   if(msg) $('#joinError').textContent=msg;
 }
 async function action(type, payload={}){
-  try{ await request(`/api/rooms/${session.roomCode}/action`, {method:'POST', body:JSON.stringify({type, payload})}); message(''); }
+  try{
+    await request(`/api/rooms/${session.roomCode}/action`, {method:'POST', body:JSON.stringify({type, payload})});
+    message('');
+    await refreshState(); // SSEが遅延/切断していても自分の操作を即反映する
+  }
   catch(e){
     if(/ルームが見つかりません/.test(e.message)){ backToJoin('ルームが終了しました（サーバーが再起動した可能性があります）。新しくルームを作成してください。'); return; }
     message(e.message, true); toast(e.message);
   }
+}
+// SSEに頼らず最新状態を取得して描画する安全網
+async function refreshState(){
+  if(!session) return;
+  try{
+    const s = await request(`/api/rooms/${session.roomCode}/state`);
+    state = s; markConnected(); render();
+  }catch(e){
+    if(/ルームが見つかりません/.test(e.message)) backToJoin('ルームが終了しました。新しくルームを作成してください。');
+  }
+}
+// SSEが死んでいてもNPCや他プレイヤーの手が反映されるよう、ゲーム中は定期的に同期する
+let pollTimer = null;
+function startPolling(){
+  clearInterval(pollTimer);
+  pollTimer = setInterval(()=>{
+    if(session && document.querySelector('#gameScreen').style.display!=='none') refreshState();
+  }, 2500);
+  if(pollTimer.unref) pollTimer.unref();
 }
 
 // ===== TOAST =====
