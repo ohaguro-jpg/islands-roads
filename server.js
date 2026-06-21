@@ -302,6 +302,33 @@ function startRoom(room, playerId, fillBots = false, difficulty = null) {
   touch(room);
 }
 
+// オンラインNPCの難易度: 1ターンの建設回数・銀行交換・発展カード購入を変える
+const DIFFICULTY_BOT = {
+  easy:   { maxActions: 2, bankTrade: false, devBuy: false },
+  normal: { maxActions: 4, bankTrade: true,  devBuy: true },
+  hard:   { maxActions: 6, bankTrade: true,  devBuy: true },
+};
+// 目標(type)に足りない資源を、余剰資源の銀行交換で1回ぶん補う。交換したら true。
+function botBankTradeToward(room, player, type) {
+  const game = room.game;
+  const cost = COSTS[type];
+  const need = {};
+  for (const [r, amt] of Object.entries(cost)) { const miss = amt - game.hands[player][r]; if (miss > 0) need[r] = miss; }
+  const wanted = Object.keys(need).sort((a, b) => need[b] - need[a]);
+  if (!wanted.length) return false; // すでに買える
+  for (const give of RESOURCES) {
+    if (need[give]) continue;                     // 足りない資源は出さない
+    const keep = cost[give] || 0;                 // 目標に要る分は残す
+    const rate = maritimeRate(game, player, give);
+    if (game.hands[player][give] - keep < rate) continue;
+    const get = wanted.find(r => game.bank[r] > 0 && r !== give);
+    if (!get) continue;
+    act(room, player, 'bankTrade', { give, get });
+    return true;
+  }
+  return false;
+}
+
 function scheduleRoomBot(room) {
   clearTimeout(room.botTimer);
   const game = room.game;
@@ -326,16 +353,24 @@ function scheduleRoomBot(room) {
       } else if (game.stage === 'steal') {
         act(room, player, 'steal', { victim: game.stealOptions[0] });
       } else if (game.stage === 'build') {
+        const diff = DIFFICULTY_BOT[room.difficulty] || DIFFICULTY_BOT.normal;
         game.botActions = (game.botActions || 0) + 1;
         const city = Object.entries(game.buildings).find(([, piece]) => piece.player === player && piece.type === 'settlement');
         const settlement = game.vertices.find(item => validSettlement(game, item.id, player, false));
         const road = game.edges.find(item => validRoad(game, item.id, player));
-        if (game.botActions > 3) act(room, player, 'endTurn');
+        const canCity = city && pieceCount(game, player, 'city') < 4;
+        const canSettle = settlement && pieceCount(game, player, 'settlement') < 5;
+        const canRoad = road && pieceCount(game, player, 'road') < 15;
+        if (game.botActions > diff.maxActions) act(room, player, 'endTurn');
         else if (!game.devPlayed[player] && game.dev[player].includes('knight') && game.tiles.some(t => t.id !== game.robberTile && robberVictims(game, t.id, player).length)) act(room, player, 'playDev', { card: 'knight' });
-        else if (city && canPay(game, player, 'city') && pieceCount(game, player, 'city') < 4) act(room, player, 'buildCity', { vertex: Number(city[0]) });
-        else if (settlement && canPay(game, player, 'settlement') && pieceCount(game, player, 'settlement') < 5) act(room, player, 'placeSettlement', { vertex: settlement.id });
-        else if (road && canPay(game, player, 'road') && pieceCount(game, player, 'road') < 15) act(room, player, 'placeRoad', { edge: road.id });
-        else if (game.devDeck.length && canPay(game, player, 'development')) act(room, player, 'buyDev');
+        else if (canCity && canPay(game, player, 'city')) act(room, player, 'buildCity', { vertex: Number(city[0]) });
+        else if (canSettle && canPay(game, player, 'settlement')) act(room, player, 'placeSettlement', { vertex: settlement.id });
+        else if (canRoad && canPay(game, player, 'road')) act(room, player, 'placeRoad', { edge: road.id });
+        // 銀行交換で目標に近づく（normal/hard）。優先度: 都市→開拓地→（hardのみ）街道
+        else if (diff.bankTrade && canCity && botBankTradeToward(room, player, 'city')) { /* traded */ }
+        else if (diff.bankTrade && canSettle && botBankTradeToward(room, player, 'settlement')) { /* traded */ }
+        else if (diff.bankTrade && diff.maxActions >= 6 && canRoad && botBankTradeToward(room, player, 'road')) { /* traded */ }
+        else if (diff.devBuy && game.devDeck.length && canPay(game, player, 'development')) act(room, player, 'buyDev');
         else act(room, player, 'endTurn');
       }
     } catch (error) {
@@ -343,6 +378,7 @@ function scheduleRoomBot(room) {
       if (game.stage === 'build') try { act(room, player, 'endTurn'); } catch {}
     }
   }, delay);
+  room.botTimer.unref?.(); // テストやCLIでプロセス終了を妨げない（本番はHTTPサーバが常駐）
 }
 
 function scheduleIdleCheck(room) {
@@ -376,6 +412,7 @@ function scheduleIdleCheck(room) {
       }
     } catch (e) { console.error('Idle auto-action failed:', e.message); }
   }, 60000);
+  room.idleTimer.unref?.(); // プロセス終了を妨げない
 }
 function adjacentVertices(game, vertex) { return game.edges.filter(edge => edge.a === vertex || edge.b === vertex).map(edge => edge.a === vertex ? edge.b : edge.a); }
 function validSettlement(game, vertex, player, setup = false) {

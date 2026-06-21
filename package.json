@@ -10,6 +10,7 @@
     "test": "node server-core-test.js",
     "test:offline": "node offline-play-test.js",
     "test:online": "node online-smoke-test.js",
-    "test:all": "npm test && npm run test:offline && npm run test:online"
+    "test:all": "npm test && npm run test:offline && npm run test:online",
+    "sim": "node sim-online.js"
   }
 }
