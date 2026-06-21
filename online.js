@@ -49,9 +49,27 @@ function connect(){
   source.onerror = ()=>{ $('#connectionStatus').textContent = '切断'; $('#reconnectBtn').hidden=false; };
   source.addEventListener('open', ()=>{ $('#connectionStatus').textContent='● 同期中'; $('#reconnectBtn').hidden=true; });
 }
+// ルームが消えた（サーバー再起動・スリープ）ときに参加画面へ戻す
+function backToJoin(msg){
+  if(source){ source.close(); source=null; }
+  state=null;
+  localStorage.removeItem('islands-online-session');
+  session=null;
+  $('#gameScreen').style.display='none';
+  $('#joinScreen').style.display='';
+  const card=document.querySelector('.join-card');
+  if(card) card.classList.remove('invite-mode');
+  const h1=document.querySelector('.join-card h1'); if(h1) h1.textContent='みんなの島へ';
+  const p=document.querySelector('.join-card>p'); if(p) p.hidden=false;
+  $('#joinHint').textContent='';
+  if(msg) $('#joinError').textContent=msg;
+}
 async function action(type, payload={}){
   try{ await request(`/api/rooms/${session.roomCode}/action`, {method:'POST', body:JSON.stringify({type, payload})}); message(''); }
-  catch(e){ message(e.message, true); toast(e.message); }
+  catch(e){
+    if(/ルームが見つかりません/.test(e.message)){ backToJoin('ルームが終了しました（サーバーが再起動した可能性があります）。新しくルームを作成してください。'); return; }
+    message(e.message, true); toast(e.message);
+  }
 }
 
 // ===== TOAST =====
@@ -494,8 +512,17 @@ $('#addBotBtn').onclick=async()=>{
   catch(e){ message(e.message,true); }
 };
 
-// Reconnect
-$('#reconnectBtn').onclick=()=>{ $('#reconnectBtn').hidden=true; connect(); };
+// Reconnect: まずルームが存在するか確認してから再接続。消えていたら参加画面へ。
+$('#reconnectBtn').onclick=async()=>{
+  const btn=$('#reconnectBtn'); btn.disabled=true; btn.textContent='確認中…';
+  try{
+    const r=await fetch(`/api/rooms/${session.roomCode}/state`,{headers:{authorization:`Bearer ${session.token}`}});
+    if(r.status===404){ backToJoin('ルームが終了しました（サーバーが再起動した可能性があります）。新しくルームを作成してください。'); return; }
+    if(r.status===401){ backToJoin('参加情報が無効になりました。もう一度参加してください。'); return; }
+    btn.hidden=true; connect();
+  }catch(e){ toast('サーバーに接続できません。少し待ってからもう一度押してください'); }
+  finally{ btn.disabled=false; btn.textContent='再接続'; }
+};
 
 // Gear: NPC speed settings
 function updateSettingsModal(){
@@ -509,6 +536,12 @@ function updateSettingsModal(){
 }
 $('#gearBtn').onclick=()=>{ $('#settingsOverlay').hidden=false; updateSettingsModal(); };
 $('#settingsCloseBtn').onclick=()=>{ $('#settingsOverlay').hidden=true; };
+
+// Fullscreen
+$('#onlineFullscreenBtn').onclick=()=>{
+  if(document.fullscreenElement) document.exitFullscreen?.();
+  else document.documentElement.requestFullscreen?.().catch(()=>toast('全画面にできませんでした'));
+};
 $$('[data-speed]').forEach(btn=>{
   btn.onclick=async()=>{
     try{ await request(`/api/rooms/${session.roomCode}/settings`,{method:'POST',body:JSON.stringify({botSpeed:btn.dataset.speed})}); updateSettingsModal(); }
