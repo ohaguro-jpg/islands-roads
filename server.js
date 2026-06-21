@@ -717,9 +717,16 @@ const server = http.createServer(async (request, response) => {
       const player = findIdentity(room, authToken); if (!player) return json(response, 401, { error: '参加トークンが無効です' });
       if (operation === 'state' && request.method === 'GET') return json(response, 200, publicState(room, player.id));
       if (operation === 'events' && request.method === 'GET') {
-        response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+        // X-Accel-Buffering:no で Render などのプロキシのバッファリングを無効化
+        response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+        response.write('retry: 3000\n\n'); // 切断時のブラウザ自動再接続を3秒に
         response.write(`event: state\ndata: ${JSON.stringify(publicState(room, player.id))}\n\n`);
-        const client = { response, playerId: player.id }; room.clients.add(client); request.on('close', () => room.clients.delete(client)); return;
+        const client = { response, playerId: player.id }; room.clients.add(client);
+        // プロキシのアイドル切断を防ぐため定期的にコメント行を送る（無通信でも接続維持）
+        const keepAlive = setInterval(() => { try { response.write(`: ping ${Date.now()}\n\n`); } catch { clearInterval(keepAlive); } }, 20000);
+        if (keepAlive.unref) keepAlive.unref();
+        request.on('close', () => { clearInterval(keepAlive); room.clients.delete(client); });
+        return;
       }
       if (operation === 'settings' && request.method === 'POST') {
         if (room.host !== player.id) throw new Error('ホストだけが設定できます');

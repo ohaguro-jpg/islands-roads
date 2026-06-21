@@ -93,16 +93,28 @@ async function joinRoom(rejoin=false){
     }
   });
 }
+let reconnectFailTimer = null;
+function markConnected(){
+  $('#connectionStatus').textContent = '● 同期中';
+  $('#reconnectBtn').hidden = true;
+  clearTimeout(reconnectFailTimer);
+}
 function connect(){
   if(source) source.close();
+  clearTimeout(reconnectFailTimer);
   source = new EventSource(`/api/rooms/${session.roomCode}/events?token=${encodeURIComponent(session.token)}`);
   source.addEventListener('state', event=>{
     state = JSON.parse(event.data);
-    $('#connectionStatus').textContent = '● 同期中';
+    markConnected();
     render();
   });
-  source.onerror = ()=>{ $('#connectionStatus').textContent = '切断'; $('#reconnectBtn').hidden=false; };
-  source.addEventListener('open', ()=>{ $('#connectionStatus').textContent='● 同期中'; $('#reconnectBtn').hidden=true; });
+  source.addEventListener('open', markConnected);
+  source.onerror = ()=>{
+    // EventSource は自動で再接続を試みる。まず「再接続中…」を出し、長引いたら手動ボタンを表示。
+    $('#connectionStatus').textContent = '再接続中…';
+    clearTimeout(reconnectFailTimer);
+    reconnectFailTimer = setTimeout(()=>{ $('#connectionStatus').textContent='切断'; $('#reconnectBtn').hidden=false; }, 9000);
+  };
 }
 // ルームが消えた（サーバー再起動・スリープ）ときに参加画面へ戻す
 function backToJoin(msg){
