@@ -76,11 +76,21 @@ async function createRoom(){
   });
 }
 async function joinRoom(rejoin=false){
+  if(rejoin && !session){ $('#rejoinBtn').hidden=true; return; } // セッションが無ければ何もしない
   const btn = rejoin?$('#rejoinBtn'):$('#joinRoomBtn');
   await withPending(btn,'参加中…',async()=>{
     const code = (rejoin?session.roomCode:$('#roomCodeInput').value).trim().toUpperCase();
-    const result = await request(`/api/rooms/${code}/join`, {method:'POST', body:JSON.stringify(rejoin?{rejoinToken:session.token}:{name:$('#onlineName').value})});
-    saveSession(result); showGame();
+    try{
+      const result = await request(`/api/rooms/${code}/join`, {method:'POST', body:JSON.stringify(rejoin?{rejoinToken:session.token}:{name:$('#onlineName').value})});
+      saveSession(result); showGame();
+    }catch(e){
+      // 前回のルームが消えていたら、死んだセッションを片付けて作成を促す
+      if(rejoin && /ルームが見つかりません/.test(e.message)){
+        localStorage.removeItem('islands-online-session'); session=null; $('#rejoinBtn').hidden=true;
+        throw new Error('前回のルームは終了しています。新しくルームを作成してください。');
+      }
+      throw e;
+    }
   });
 }
 function connect(){
@@ -102,6 +112,7 @@ function backToJoin(msg){
   session=null;
   $('#gameScreen').style.display='none';
   $('#joinScreen').style.display='';
+  $('#rejoinBtn').hidden=true; // 死んだセッションの再参加ボタンは消す（押すとクラッシュするため）
   const card=document.querySelector('.join-card');
   if(card) card.classList.remove('invite-mode');
   const h1=document.querySelector('.join-card h1'); if(h1) h1.textContent='みんなの島へ';
