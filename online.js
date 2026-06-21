@@ -12,7 +12,14 @@ const svgNS = 'http://www.w3.org/2000/svg';
 function message(text, error=false){ const el=$('#onlineNotice'); if(el){el.textContent=text;el.style.color=error?'#b44b3b':'#47705c';} }
 async function request(url, options={}){
   const response = await fetch(url, {...options, headers: {'content-type':'application/json', ...(session?{authorization:`Bearer ${session.token}`}:{}), ...(options.headers||{})}});
-  const data = await response.json();
+  const text = await response.text();
+  let data;
+  try{ data = text ? JSON.parse(text) : {}; }
+  catch{
+    // JSONでない（Render起動中のHTML待機ページや404 HTML）→ 分かりやすいエラーに変換
+    if(response.status===404) throw new Error('ルームが見つかりません');
+    throw new Error('サーバーを起動しています。10〜30秒ほど待ってから、もう一度お試しください。');
+  }
   if(!response.ok) throw new Error(data.error||'通信に失敗しました');
   return data;
 }
