@@ -264,7 +264,7 @@ function updateLongestRoad(game) {
 
 function createRoom(name, boardMode, expansion, difficulty) {
   const code = roomCode();
-  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: ['easy','hard'].includes(difficulty) ? difficulty : 'normal', botSpeed: 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [] };
+  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: ['easy','hard'].includes(difficulty) ? difficulty : 'normal', botSpeed: 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [], lastActive: Date.now() };
   rooms.set(code, room);
   return { room, identity: addPlayer(room, name) };
 }
@@ -663,7 +663,16 @@ function publicState(room, playerId) {
   return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, harborEdges: game.harborEdges, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, longestRoadOwner: game.longestRoadOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, devPlayed: game.devPlayed[playerId], offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
 }
 function findIdentity(room, authToken) { return authToken ? room.players.find(player => player.token === authToken && !player.isBot) : null; }
-function touch(room) { room.version++; broadcast(room); scheduleRoomBot(room); scheduleIdleCheck(room); }
+function touch(room) { room.lastActive = Date.now(); room.version++; broadcast(room); scheduleRoomBot(room); scheduleIdleCheck(room); }
+// 放置されたルームを定期削除（無料枠のメモリ圧迫を防ぐ）。接続クライアントがおらず30分更新なしなら破棄。
+function cleanupRooms() {
+  const now = Date.now();
+  for (const [code, room] of rooms) {
+    if (room.clients.size === 0 && now - (room.lastActive || 0) > 30 * 60 * 1000) {
+      clearTimeout(room.botTimer); clearTimeout(room.idleTimer); rooms.delete(code);
+    }
+  }
+}
 function broadcast(room) {
   room.clients.forEach(client => {
     try { client.response.write(`event: state\ndata: ${JSON.stringify(publicState(room, client.playerId))}\n\n`); } catch { room.clients.delete(client); }
@@ -723,7 +732,7 @@ const server = http.createServer(async (request, response) => {
         response.write(`event: state\ndata: ${JSON.stringify(publicState(room, player.id))}\n\n`);
         const client = { response, playerId: player.id }; room.clients.add(client);
         // プロキシのアイドル切断を防ぐため定期的にコメント行を送る（無通信でも接続維持）
-        const keepAlive = setInterval(() => { try { response.write(`: ping ${Date.now()}\n\n`); } catch { clearInterval(keepAlive); } }, 20000);
+        const keepAlive = setInterval(() => { try { response.write(`: ping ${Date.now()}\n\n`); } catch { clearInterval(keepAlive); room.clients.delete(client); } }, 20000);
         if (keepAlive.unref) keepAlive.unref();
         request.on('close', () => { clearInterval(keepAlive); room.clients.delete(client); });
         return;
@@ -756,6 +765,7 @@ const server = http.createServer(async (request, response) => {
 if (require.main === module) {
   loadRooms();
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { flushRooms(); process.exit(0); });
+  setInterval(cleanupRooms, 5 * 60 * 1000).unref?.(); // 5分ごとに放置ルームを掃除
   server.listen(PORT, '0.0.0.0', () => console.log(`ISLANDS & ROADS Online: http://localhost:${PORT}`));
 }
 

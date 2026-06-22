@@ -10,8 +10,18 @@ const svgNS = 'http://www.w3.org/2000/svg';
 
 // ===== NETWORK =====
 function message(text, error=false){ const el=$('#onlineNotice'); if(el){el.textContent=text;el.style.color=error?'#b44b3b':'#47705c';} }
-async function request(url, options={}){
-  const response = await fetch(url, {...options, headers: {'content-type':'application/json', ...(session?{authorization:`Bearer ${session.token}`}:{}), ...(options.headers||{})}});
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+async function request(url, options={}, _try=0){
+  let response;
+  try{
+    response = await fetch(url, {...options, headers: {'content-type':'application/json', ...(session?{authorization:`Bearer ${session.token}`}:{}), ...(options.headers||{})}});
+  }catch(e){
+    // ネットワーク断 → 少し待って自動リトライ
+    if(_try<2){ await sleep(700); return request(url, options, _try+1); }
+    throw new Error('通信できませんでした。接続を確認してもう一度お試しください。');
+  }
+  // Render無料枠の一時的なゲートウェイ不調（502/503/504）→ 自動リトライ
+  if([502,503,504].includes(response.status) && _try<3){ await sleep(900); return request(url, options, _try+1); }
   const text = await response.text();
   let data;
   try{ data = text ? JSON.parse(text) : {}; }
