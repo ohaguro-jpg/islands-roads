@@ -682,7 +682,10 @@ function broadcast(room) {
 
 // ----- Room persistence (survives server restarts; on hosts with a persistent disk also survives sleep) -----
 const ROOMS_FILE = process.env.ROOMS_FILE || path.join(ROOT, '.rooms.json');
-const PERSIST_ENABLED = require.main === module; // off during unit tests
+// 永続化は既定でOFF（PERSIST_ROOMS=1 のときだけ有効）。
+// Render無料枠ではFSが揮発するため価値が低く、ゲーム毎の頻繁な全ルーム書き込みが
+// インスタンスを圧迫して502を誘発しうるため、デフォルトで無効化する。
+const PERSIST_ENABLED = require.main === module && process.env.PERSIST_ROOMS === '1';
 function serializeRooms() { return JSON.stringify([...rooms.values()].map(room => ({ ...room, clients: undefined, botTimer: undefined }))); }
 let persistTimer = null;
 function persist() {
