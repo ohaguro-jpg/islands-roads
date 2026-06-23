@@ -47,9 +47,11 @@ let gameConfig = { playerName: 'あなた', boardMode: 'default', music: true, d
 const BOT_SPEED = { slow: 1.7, normal: 1, fast: .35 };
 const botDelay = ms => Math.round(ms * (BOT_SPEED[gameConfig.botSpeed] || 1));
 const DIFFICULTY = {
-  easy:   { label: 'やさしい', actions: 2, smartRoad: false, bankTrade: false, devBuy: false, devChance: .15 },
-  normal: { label: 'ふつう',   actions: 4, smartRoad: false, bankTrade: true,  devBuy: true,  devChance: .5 },
-  hard:   { label: '強い',     actions: 6, smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: .85 }
+  easy:   { label: 'やさしい',   actions: 2,  smartRoad: false, bankTrade: false, devBuy: false, devChance: .15, smart: false },
+  normal: { label: 'ふつう',     actions: 4,  smartRoad: false, bankTrade: true,  devBuy: true,  devChance: .5,  smart: false },
+  hard:   { label: '強い',       actions: 6,  smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: .85, smart: false },
+  expert: { label: 'もっと強い', actions: 9,  smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true },
+  master: { label: '最強',       actions: 16, smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true }
 };
 const botRules = () => DIFFICULTY[gameConfig.difficulty] || DIFFICULTY.normal;
 let audioContext = null;
@@ -1164,6 +1166,56 @@ function setupVertexScore(vertex) {
   }, 0) + Math.random() * 2;
 }
 
+// Pip value of a number token (probability weight): 6/8 → 5, 2/12 → 1.
+function pipValue(num) { return num ? 6 - Math.abs(7 - num) : 0; }
+
+// What a player already produces — resource pips and which numbers they sit on.
+function botProduction(player) {
+  const res = {}, nums = {};
+  Object.entries(state.buildings).forEach(([vertex, building]) => {
+    if (building.player !== player) return;
+    const weight = building.type === 'city' ? 2 : 1;
+    vertices[vertex].tiles.forEach(tileIndex => {
+      const resource = TYPE_DATA[tiles[tileIndex].type].res;
+      const num = tiles[tileIndex].num;
+      if (resource && num) { res[resource] = (res[resource] || 0) + pipValue(num) * weight; nums[num] = (nums[num] || 0) + 1; }
+    });
+  });
+  return { res, nums };
+}
+
+// Smarter opening: weigh probability AND resource diversity, number spread, and harbors —
+// not just raw pip count. Used by expert/master (rules.smart).
+function botSetupScore(vertex, player) {
+  const prod = botProduction(player);
+  const types = new Set();
+  let score = 0;
+  vertices[vertex].tiles.forEach(tileIndex => {
+    const num = tiles[tileIndex].num;
+    if (!num) return;
+    score += pipValue(num);
+    const resource = TYPE_DATA[tiles[tileIndex].type].res;
+    if (!resource) return;
+    types.add(resource);
+    // Brand-new resource is valuable; building staples (wood/brick/wheat/sheep) more so.
+    if (!prod.res[resource]) score += 2.5 + (resource === 'ore' ? 0 : 1);
+    // Avoid stacking onto a number we already depend on (a single robber/bad luck hurts less).
+    if (prod.nums[num]) score -= 0.5 * prod.nums[num];
+  });
+  score += types.size * 1.2; // covering several resources at one spot is strong
+  if (Object.prototype.hasOwnProperty.call(state.harbors, vertex)) score += state.harbors[vertex] ? 1.5 : 1;
+  return score + Math.random() * 1.2;
+}
+
+// Pick the best opening spot for a bot: smart heuristic for expert/master, plain pips otherwise.
+function botOpeningChoice(player) {
+  const choices = vertices.map((_, i) => i).filter(canPlaceInitialSettlement);
+  if (!choices.length) return null;
+  return botRules().smart
+    ? choices.sort((a, b) => botSetupScore(b, player) - botSetupScore(a, player))[0]
+    : choices.sort((a, b) => setupVertexScore(b) - setupVertexScore(a))[0];
+}
+
 function scheduleBotSetup() {
   const version = gameVersion;
   const expectedStep = state.setupStep;
@@ -1172,8 +1224,7 @@ function scheduleBotSetup() {
   setTimeout(() => {
     if (version !== gameVersion || state.phase !== 'setup' || state.setupStep !== expectedStep || state.turn !== expectedPlayer || !currentIsBot()) return;
     const player = expectedPlayer;
-    const choices = vertices.map((_, i) => i).filter(canPlaceInitialSettlement).sort((a, b) => setupVertexScore(b) - setupVertexScore(a));
-    const vertex = choices[0];
+    const vertex = botOpeningChoice(player);
     placeInitialSettlement(vertex, player);
     state.setupVertex = vertex;
     state.setupPart = 'road';
@@ -1181,7 +1232,9 @@ function scheduleBotSetup() {
     setTimeout(() => {
       if (version !== gameVersion || state.phase !== 'setup' || state.setupStep !== expectedStep || state.turn !== expectedPlayer || state.setupPart !== 'road') return;
       const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && edgeTouches(i, vertex));
-      state.roads[roads[Math.floor(Math.random() * roads.length)]] = player;
+      // Smart bots aim the opening road toward the best next settlement spot; others go random.
+      const chosen = botRules().smart ? roads.sort((a, b) => roadValue(b, player) - roadValue(a, player))[0] : roads[Math.floor(Math.random() * roads.length)];
+      state.roads[chosen] = player;
       toast(`${state.players[player].name}が開拓地と街道を配置`);
       finishSetupTurn();
     }, 450);
@@ -1192,15 +1245,16 @@ function forceSetupNpc() {
   if (state.phase !== 'setup' || !currentIsBot()) return;
   const player = state.turn;
   if (state.setupPart === 'settlement') {
-    const choices = vertices.map((_, i) => i).filter(canPlaceInitialSettlement).sort((a, b) => setupVertexScore(b) - setupVertexScore(a));
-    if (!choices.length) return;
-    state.setupVertex = choices[0];
+    const choice = botOpeningChoice(player);
+    if (choice == null) return;
+    state.setupVertex = choice;
     placeInitialSettlement(state.setupVertex, player);
     state.setupPart = 'road';
   }
   const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && edgeTouches(i, state.setupVertex));
   if (!roads.length) return;
-  state.roads[roads[0]] = player;
+  const chosen = botRules().smart ? roads.sort((a, b) => roadValue(b, player) - roadValue(a, player))[0] : roads[0];
+  state.roads[chosen] = player;
   toast(`${state.players[player].name}の初期配置を完了しました`);
   finishSetupTurn();
 }
@@ -1956,15 +2010,28 @@ function showSageDialog(player, card1, card2) {
   });
 }
 
+function handSize(player) { return Object.values(state.players[player].resources).reduce((a, b) => a + b, 0); }
+
 function moveRobberAndSteal(player) {
-  const target = tiles.map((tile, index) => ({ index, score: index === state.robberTile ? -1 : tile.vertices.reduce((sum, vertex) => {
-    const building = state.buildings[vertex];
-    return sum + (building && building.player !== player ? (building.type === 'city' ? 3 : 2) : 0);
-  }, 0) + Math.random() })).sort((a, b) => b.score - a.score)[0].index;
+  const smart = botRules().smart;
+  const target = tiles.map((tile, index) => {
+    if (index === state.robberTile || tile.type === 'desert' || tile.type === 'sea') return { index, score: -1 };
+    let score = tile.vertices.reduce((sum, vertex) => {
+      const building = state.buildings[vertex];
+      if (!building || building.player === player) return sum;
+      const base = building.type === 'city' ? 3 : 2;
+      // Smart bots hit whoever is ahead — leader standing dominates, tile productivity is secondary.
+      const lead = smart ? 1 + visibleVP(building.player) * 0.6 : 1;
+      return sum + base * lead;
+    }, 0);
+    if (smart) score *= 0.75 + pipValue(tile.num) / 8;
+    return { index, score: score + Math.random() * (smart ? 0.3 : 1) };
+  }).sort((a, b) => b.score - a.score)[0].index;
   state.robberTile = target;
   const victims = [...new Set(tiles[target].vertices.map(vertex => state.buildings[vertex]?.player).filter(owner => owner != null && owner !== player && randomOwnedResource(owner)))];
   if (!victims.length) return;
-  const victim = victims[Math.floor(Math.random() * victims.length)];
+  // Smart bots rob the player holding the most cards (and likely the leader); others pick at random.
+  const victim = smart ? victims.sort((a, b) => handSize(b) - handSize(a))[0] : victims[Math.floor(Math.random() * victims.length)];
   const resource = randomOwnedResource(victim);
   state.players[victim].resources[resource]--;
   state.players[player].resources[resource]++;
