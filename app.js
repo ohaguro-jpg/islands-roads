@@ -2179,6 +2179,7 @@ function updateAwards() {
     const leaders = armies.map((size, player) => ({ size, player })).filter(item => item.size === armyBest);
     if (leaders.length === 1 || leaders.some(item => item.player === state.largestArmyOwner)) state.largestArmyOwner = leaders.find(item => item.player === state.largestArmyOwner)?.player ?? leaders[0].player;
   } else state.largestArmyOwner = null;
+  checkAnyWin();
 }
 
 function npcResourceNeed(player, resource) {
@@ -2400,6 +2401,19 @@ function checkWin(player = state.turn) {
     state.gameOver = true;
     showWinner(player);
   }
+}
+
+// Awards (longest road / largest army, +2 each) can push ANY player to the target as a
+// side-effect of someone else's move — not just the acting player. Scan everyone so a win
+// is never missed. Prefer the current player if they qualify (they win on their own turn).
+function checkAnyWin() {
+  if (state.gameOver) return;
+  const target = state.targetScore || 10;
+  const qualified = state.players.map((_, p) => p).filter(p => totalVP(p) >= target);
+  if (!qualified.length) return;
+  const winner = qualified.includes(state.turn) ? state.turn : qualified.sort((a, b) => totalVP(b) - totalVP(a))[0];
+  state.gameOver = true;
+  showWinner(winner);
 }
 
 function showWinner(player) {

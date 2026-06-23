@@ -194,6 +194,27 @@ run(`(function longestRoadTests() {
 console.log('offline full play test: PASS');
 console.log(run(`JSON.stringify({round:state.round,turn:state.turn,buildings:Object.keys(state.buildings).length,roads:Object.keys(state.roads).length,vp:state.players.map((_,i)=>totalVP(i)),developmentDeck:state.devDeck.length})`));
 
+// 称号(最大騎士力/最長交易路 +2)で「手番でない」プレイヤーが目標点に到達したら、
+// updateAwards内のcheckAnyWinで勝利画面が出ること（出ないバグの回帰防止）。
+run(`(() => {
+  const snap = state.players.map(p => ({ vp: p.vp, knights: p.playedKnights }));
+  const savedTurn = state.turn, savedOver = state.gameOver, savedArmy = state.largestArmyOwner;
+  state.gameOver = false;
+  state.turn = 0;                                    // 手番は player0
+  state.players.forEach(p => { p.playedKnights = 0; });
+  state.largestArmyOwner = null;
+  state.players[2].vp = 8;                           // player2 は見かけ8点
+  state.players[2].playedKnights = 3;               // 騎士3 → 最大騎士力(+2)で10点
+  updateAwards();                                    // 非手番でも全員チェックされる
+  if (state.largestArmyOwner !== 2) throw new Error('称号勝利: 最大騎士力がplayer2に付与されない');
+  if (totalVP(2) !== 10) throw new Error('称号勝利: player2が10点でない got=' + totalVP(2));
+  if (!state.gameOver) throw new Error('称号勝利: 非手番の到達で勝利判定されない（バグ再発）');
+  // 後片付け
+  state.players.forEach((p, i) => { p.vp = snap[i].vp; p.playedKnights = snap[i].knights; });
+  state.turn = savedTurn; state.gameOver = savedOver; state.largestArmyOwner = savedArmy;
+})()`);
+console.log('award-driven win test: PASS');
+
 // Seafarers expansion: board, ships, gold, island discovery, NPC sailing AI, ship movement
 const seafarers = run(`(function seafarersTests() {
   const savedConfig = JSON.stringify(gameConfig);
