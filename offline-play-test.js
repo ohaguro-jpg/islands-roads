@@ -304,3 +304,27 @@ if (run('state.expansion') != null) throw new Error('基本ゲームに復帰し
 
 console.log('seafarers expansion test: PASS');
 console.log(seafarers);
+
+// 盤面サイズ: 標準19/大型31/巨大37のタイル数と、頂点dedupの健全性（長さ0の辺＝重複頂点が無い、
+// どの頂点も最大3タイル接触）。unitを変えても幾何が壊れないことの回帰防止。
+const boardSizes = run(`(() => {
+  const savedSize = gameConfig.boardSize, savedMode = gameConfig.boardMode;
+  gameConfig.boardMode = 'random';
+  const expect = { standard: 19, large: 31, huge: 37 };
+  const out = {};
+  for (const size in expect) {
+    gameConfig.boardSize = size;
+    buildBoard();
+    if (tiles.length !== expect[size]) throw new Error('盤面' + size + ': タイル数 ' + tiles.length + ' != ' + expect[size]);
+    const zeroEdges = edges.filter(e => Math.hypot(vertices[e.a].x - vertices[e.b].x, vertices[e.a].y - vertices[e.b].y) < 1).length;
+    if (zeroEdges) throw new Error('盤面' + size + ': 長さ0の辺=頂点dedup失敗 x' + zeroEdges);
+    if (vertices.some(v => v.tiles.length > 3)) throw new Error('盤面' + size + ': 4タイル超に接する頂点');
+    if (Object.keys(state.harbors).length < 2) throw new Error('盤面' + size + ': 港が生成されない');
+    out[size] = { tiles: tiles.length, vertices: vertices.length, edges: edges.length };
+  }
+  gameConfig.boardSize = savedSize; gameConfig.boardMode = savedMode;
+  buildBoard();
+  return JSON.stringify(out);
+})()`);
+console.log('board size test: PASS');
+console.log(boardSizes);

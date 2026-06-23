@@ -15,6 +15,40 @@ const NAMES = ['あなた', 'ミナト', 'アオイ', 'ハル'];
 const NPC_NAMES = ['ミナト', 'アオイ', 'ハル', 'カイ'];
 const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 }, ship: { wood: 1, sheep: 1 } };
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 };
+// Selectable board sizes. `n` is the axial hexagon radius; `trimCorners` drops the 6 corner
+// hexes for a rounded mid-size board. `unit` is the hex radius in px — smaller for bigger
+// boards so they fit the same on-screen envelope (sea-ring / .board are fixed size).
+const BOARD_SIZES = {
+  standard: { label: '標準', n: 2, trimCorners: false, unit: 64, deserts: 1, harbors: 9,  pieces: { road: 15, settlement: 5, city: 4, ship: 15 } },
+  large:    { label: '大型', n: 3, trimCorners: true,  unit: 52, deserts: 2, harbors: 11, pieces: { road: 21, settlement: 7, city: 5, ship: 21 } },
+  huge:     { label: '巨大', n: 3, trimCorners: false, unit: 49, deserts: 2, harbors: 13, pieces: { road: 26, settlement: 8, city: 6, ship: 26 } }
+};
+function boardSizeConfig() { return BOARD_SIZES[gameConfig.boardSize] || BOARD_SIZES.standard; }
+// Axial coords of all hexes for a size (optionally trimming the 6 corners of the hexagon).
+function boardCoords(cfg) {
+  const N = cfg.n, coords = [];
+  for (let r = -N; r <= N; r++) {
+    for (let q = Math.max(-N, -r - N); q <= Math.min(N, -r + N); q++) {
+      if (cfg.trimCorners && [Math.abs(q), Math.abs(r), Math.abs(-q - r)].filter(v => v === N).length >= 2) continue;
+      coords.push({ q, r });
+    }
+  }
+  return coords;
+}
+// Resource terrain for `count` hexes: deserts + the 5 resources spread as evenly as possible.
+function boardResourceTypes(cfg, count) {
+  const order = ['forest', 'pasture', 'fields', 'hills', 'mountains'];
+  const types = [];
+  for (let i = 0; i < count - cfg.deserts; i++) types.push(order[i % order.length]);
+  for (let i = 0; i < cfg.deserts; i++) types.push('desert');
+  return shuffle(types);
+}
+// Harbor mix: each of the 5 resource (2:1) harbors at least once, the rest generic 3:1.
+function harborTypeList(count) {
+  const list = ['wood', 'brick', 'wheat', 'sheep', 'ore'];
+  while (list.length < count) list.push(null);
+  return shuffle(list);
+}
 const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
 // Hero Pack (Claude Original) — each player receives one passive hero ability
 const HEROES = [
@@ -43,7 +77,7 @@ let scale = 1;
 let gameVersion = 0;
 let botTimer = null;
 let botWatchdog = null;
-let gameConfig = { playerName: 'あなた', boardMode: 'default', music: true, difficulty: 'normal', botSpeed: 'normal' };
+let gameConfig = { playerName: 'あなた', boardMode: 'default', boardSize: 'standard', music: true, difficulty: 'normal', botSpeed: 'normal' };
 const BOT_SPEED = { slow: 1.7, normal: 1, fast: .35 };
 const botDelay = ms => Math.round(ms * (BOT_SPEED[gameConfig.botSpeed] || 1));
 const DIFFICULTY = {
@@ -213,16 +247,22 @@ function createFairNumbers(coords, types) {
     const dr = a.r - b.r;
     return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)) === 1;
   };
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const pool = shuffle(NUMBERS);
+  // Build a number pool sized to the non-desert hex count, repeating the balanced base
+  // distribution (each number twice, 2 & 12 once) so larger boards have enough tokens.
+  const base = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+  const landCount = types.filter(type => type !== 'desert').length;
+  const makePool = () => { const pool = []; while (pool.length < landCount) pool.push(...base); return shuffle(pool).slice(0, landCount); };
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const pool = makePool();
     const result = [];
     let cursor = 0;
     coords.forEach((_, index) => result[index] = types[index] === 'desert' ? null : pool[cursor++]);
     const fair = result.every((number, index) => ![6, 8].includes(number) || result.every((other, otherIndex) => index === otherIndex || ![6, 8].includes(other) || !isNeighbor(coords[index], coords[otherIndex])));
     if (fair) return result;
   }
+  const pool = makePool();
   let cursor = 0;
-  return types.map(type => type === 'desert' ? null : NUMBERS[cursor++]);
+  return types.map(type => type === 'desert' ? null : pool[cursor++]);
 }
 
 function newGame() {
@@ -287,31 +327,35 @@ function startNpcHeartbeat() {
 
 function buildBoard() {
   if (gameConfig.expansion === 'seafarers') { buildSeafarersBoard(); return; }
+  const cfg = boardSizeConfig();
+  const U = cfg.unit, hexH = Math.sqrt(3) * U;
+  const isStandard = (gameConfig.boardSize || 'standard') === 'standard';
+  Object.assign(PIECE_LIMITS, cfg.pieces);
   const board = $('#board');
   board.innerHTML = '<div class="sea-ring"></div>';
+  board.dataset.size = gameConfig.boardSize || 'standard';
   vertices = [];
   edges = [];
   tiles = [];
-  const coords = [];
-  for (let r = -2; r <= 2; r++) {
-    const qMin = Math.max(-2, -r - 2);
-    const qMax = Math.min(2, -r + 2);
-    for (let q = qMin; q <= qMax; q++) coords.push({ q, r });
-  }
-  const types = gameConfig.boardMode === 'default' ? [...DEFAULT_TYPES] : shuffle(TILE_TYPES);
-  const numbers = gameConfig.boardMode === 'default' ? [...DEFAULT_NUMBERS] : createFairNumbers(coords, types);
+  state.robberTile = null;
+  const coords = boardCoords(cfg);
+  const useDefault = gameConfig.boardMode === 'default' && isStandard;
+  const types = useDefault ? [...DEFAULT_TYPES] : boardResourceTypes(cfg, coords.length);
+  const numbers = useDefault ? [...DEFAULT_NUMBERS] : createFairNumbers(coords, types);
   coords.forEach((coord, i) => {
-    const x = 345 + 96 * coord.q;
-    const y = 325 + Math.sqrt(3) * 64 * (coord.r + coord.q / 2);
+    const x = 345 + 1.5 * U * coord.q;
+    const y = 325 + Math.sqrt(3) * U * (coord.r + coord.q / 2);
     const type = types[i];
     const num = numbers[i];
     tiles.push({ x, y, type, num, vertices: [] });
-    if (type === 'desert') state.robberTile = i;
+    if (type === 'desert' && state.robberTile == null) state.robberTile = i;
     const element = document.createElement('div');
     element.className = `hex ${type}`;
     element.dataset.tile = i;
-    element.style.left = `${x - 64}px`;
-    element.style.top = `${y - 56}px`;
+    element.style.left = `${x - U}px`;
+    element.style.top = `${y - hexH / 2}px`;
+    element.style.width = `${2 * U}px`;
+    element.style.height = `${hexH}px`;
     element.innerHTML = `<span class="tile-icon">${TYPE_DATA[type].icon}</span>${num ? `<span class="token ${num === 6 || num === 8 ? 'hot' : ''}">${num}<small>${'•'.repeat(6 - Math.abs(7 - num))}</small></span>` : ''}`;
     element.onclick = () => placeRobber(i);
     board.append(element);
@@ -320,8 +364,8 @@ function buildBoard() {
   tiles.forEach((tile, tileIndex) => {
     for (let corner = 0; corner < 6; corner++) {
       const angle = Math.PI / 3 * corner;
-      const x = Math.round(tile.x + 64 * Math.cos(angle));
-      const y = Math.round(tile.y + 64 * Math.sin(angle));
+      const x = Math.round(tile.x + U * Math.cos(angle));
+      const y = Math.round(tile.y + U * Math.sin(angle));
       const key = `${x},${y}`;
       let vertexIndex = vertexMap.get(key);
       if (vertexIndex == null) {
@@ -369,10 +413,11 @@ function buildBoard() {
   });
   const coastal = new Set(vertices.map((vertex, index) => vertex.tiles.length < 3 ? index : null).filter(index => index != null));
   const boundaryEdges = edges.map((edge, index) => ({ edge, index, angle: Math.atan2((vertices[edge.a].y + vertices[edge.b].y) / 2 - 325, (vertices[edge.a].x + vertices[edge.b].x) / 2 - 345) })).filter(item => coastal.has(item.edge.a) && coastal.has(item.edge.b) && vertices[item.edge.a].tiles.filter(tile => vertices[item.edge.b].tiles.includes(tile)).length === 1).sort((a, b) => a.angle - b.angle);
-  const harborTypes = gameConfig.boardMode === 'default' ? [null, 'wood', null, 'brick', null, 'wheat', 'sheep', null, 'ore'] : shuffle([null, null, null, null, 'wood', 'brick', 'wheat', 'sheep', 'ore']);
+  const harborCount = cfg.harbors;
+  const harborTypes = useDefault ? [null, 'wood', null, 'brick', null, 'wheat', 'sheep', null, 'ore'] : harborTypeList(harborCount);
   const usedHarborVertices = new Set();
-  for (let i = 0; i < 9; i++) {
-    const target = Math.floor(i * boundaryEdges.length / 9);
+  for (let i = 0; i < harborCount; i++) {
+    const target = Math.floor(i * boundaryEdges.length / harborCount);
     let offset = 0;
     while (offset < boundaryEdges.length && [boundaryEdges[(target + offset) % boundaryEdges.length].edge.a, boundaryEdges[(target + offset) % boundaryEdges.length].edge.b].some(vertex => usedHarborVertices.has(vertex))) offset++;
     const harborEdge = boundaryEdges[(target + offset) % boundaryEdges.length].edge;
@@ -2625,6 +2670,7 @@ $('#startGameBtn').onclick = () => {
     humanNames,
     npcCount: Math.max(0, 4 - humanCount),
     boardMode: $('input[name="boardMode"]:checked').value,
+    boardSize: $('input[name="boardSize"]:checked')?.value || 'standard',
     difficulty: $('input[name="difficulty"]:checked')?.value || 'normal',
     botSpeed: $('input[name="botSpeed"]:checked')?.value || 'normal',
     targetScore: Number($('input[name="targetScore"]:checked')?.value) || 10,

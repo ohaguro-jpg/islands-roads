@@ -37,6 +37,13 @@
         <label><input type="radio" name="boardMode" value="default" checked><span><b>デフォルト</b><small>毎回同じ、遊びやすい配置</small></span></label>
         <label><input type="radio" name="boardMode" value="random"><span><b>ランダム</b><small>土地と数字が毎回変わる</small></span></label>
       </fieldset>
+      <fieldset class="start-options board-size-options">
+        <legend>盤面の大きさ</legend>
+        <label><input type="radio" name="boardSize" value="standard" checked><span><b>標準</b><small>19マス・本家サイズ</small></span></label>
+        <label><input type="radio" name="boardSize" value="large"><span><b>大型</b><small>31マス・やや長期戦</small></span></label>
+        <label><input type="radio" name="boardSize" value="huge"><span><b>巨大</b><small>37マス・長期戦／高得点向き</small></span></label>
+      </fieldset>
+      <p class="npc-hint" id="boardSizeHint">大型・巨大は配置がランダムになります（デフォルト配置は標準のみ）。勝利点は上げると良いバランスです。</p>
       <fieldset class="start-options">
         <legend>NPCの強さ</legend>
         <label><input type="radio" name="difficulty" value="easy"><span><b>やさしい</b><small>控えめに動く初心者向け</small></span></label>

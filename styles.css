@@ -158,3 +158,12 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 .barb-step.last{border-radius:4px 8px 8px 4px}
 .barb-hint{font-size:9px;color:#84908b;line-height:1.4;display:block}
 .barb-panel .panel-heading span{color:#b04030;font-weight:800}
+/* Bigger boards use smaller hexes (set in JS via unit) — scale tile glyphs/tokens to match */
+#board[data-size="large"] .tile-icon{font-size:25px;top:11px}
+#board[data-size="huge"] .tile-icon{font-size:23px;top:9px}
+#board[data-size="large"] .token{width:29px;height:29px;font-size:14px}
+#board[data-size="huge"] .token{width:26px;height:26px;font-size:12px}
+#board[data-size="large"] .token small{margin-top:25px}
+#board[data-size="huge"] .token small{margin-top:22px}
+.board-size-options{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:600px){.board-size-options{grid-template-columns:1fr}}
