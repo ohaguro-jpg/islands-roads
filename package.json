@@ -11,6 +11,9 @@
     "test:offline": "node offline-play-test.js",
     "test:online": "node online-smoke-test.js",
     "test:all": "npm test && npm run test:offline && npm run test:online",
-    "sim": "node sim-online.js"
+    "sim": "node sim-online.js",
+    "stress": "node stress-setup.js && node stress-play.js",
+    "stress:setup": "node stress-setup.js",
+    "stress:play": "node stress-play.js"
   }
 }

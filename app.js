@@ -316,6 +316,7 @@ function startNpcHeartbeat() {
       return;
     }
     if (state.phase !== 'play') return;
+    if (state.resolvingSeven) return; // a human discard / robber move is pending — never auto-advance past it
     if (!state.botBusy && !state.rolled) botTurn();
     else if (!state.botBusy && state.rolled && elapsed > 2200) advanceTurn();
     else if (state.botBusy && elapsed > 5000) {
@@ -1677,6 +1678,30 @@ function endTurn() {
   advanceTurn();
 }
 
+// Escape hatch for the player: un-stick a frozen game without losing progress.
+// Clears stalled bot timers, resolves a dangling "7" with no pending choice, closes a stuck
+// modal, and nudges the current bot to act. If there is no game, just reloads the page.
+function recoverGame() {
+  if (!state) { location.reload(); return; }
+  clearTimeout(botTimer);
+  clearTimeout(botWatchdog);
+  clearInterval(npcHeartbeat);
+  state.botBusy = false;
+  const awaitingChoice = state.mode === 'robber' || state.mode === 'pirate' || (state.discardQueue && state.discardQueue.length);
+  if (state.resolvingSeven && !awaitingChoice) state.resolvingSeven = false;
+  if (state.pendingRobberTile != null || state.pendingPirateTile != null) { state.pendingRobberTile = null; state.pendingPirateTile = null; }
+  if ($('#modal')?.open && !awaitingChoice) { try { $('#modal').close(); } catch (e) {} $('#modalClose').hidden = false; }
+  state.awaitingPass = false;
+  const overlay = $('#passScreen');
+  if (overlay) { overlay.style.display = 'none'; overlay.classList.add('hidden'); }
+  startNpcHeartbeat();
+  render();
+  if (state.phase === 'setup' && currentIsBot()) forceSetupNpc();
+  else if (state.phase === 'play' && currentIsBot()) { state.botBusy = false; botTurn(); }
+  render();
+  toast('状態を復旧しました。まだ進まない場合はもう一度押すか「新しいゲーム」を試してください');
+}
+
 function advanceTurn() {
   if (state.phase !== 'play' || state.gameOver) return;
   clearTimeout(botTimer);
@@ -1762,7 +1787,7 @@ function scheduleBotTurn(delay = 650) {
     if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver) botTurn();
   }, botDelay(delay));
   botWatchdog = setTimeout(() => {
-    if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver) {
+    if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver && !state.resolvingSeven) {
       state.botBusy = false;
       toast(`${state.players[expectedPlayer].name}の処理を復旧しました`);
       advanceTurn();
@@ -1807,6 +1832,12 @@ function botTurn() {
 
 function continueBotTurn(playerIndex, version) {
   if (version !== gameVersion || state.turn !== playerIndex || state.gameOver) return;
+  // A 7 this bot rolled may still be waiting on a HUMAN to discard / move the robber.
+  // Don't build or end the turn until that resolves, or End-Turn would stay disabled (freeze).
+  if (state.resolvingSeven) {
+    setTimeout(() => continueBotTurn(playerIndex, version), botDelay(300));
+    return;
+  }
   try {
     runBotActions(playerIndex);
     render();
@@ -2523,6 +2554,8 @@ $('#npcControlBtn').onclick = forceNpcProgress;
 $('#cancelCardBtn').onclick = cancelCardAction;
 $('#playerTradeBtn').onclick = executePlayerTrade;
 $('#playerTradeAllBtn').onclick = executePlayerTradeAll;
+const recoverBtnEl = $('#recoverBtn');
+if (recoverBtnEl) recoverBtnEl.onclick = () => recoverGame();
 $('#newGameBtn').onclick = () => {
   $('#playerNameInput').value = gameConfig.playerName;
   $(`input[name="boardMode"][value="${gameConfig.boardMode}"]`).checked = true;

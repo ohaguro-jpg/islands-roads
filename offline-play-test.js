@@ -30,7 +30,7 @@ class Element {
 
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const button = new Element(); button.className = 'build-card'; button.dataset.build = type; return button; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -328,3 +328,26 @@ const boardSizes = run(`(() => {
 })()`);
 console.log('board size test: PASS');
 console.log(boardSizes);
+
+// 詰まり回帰: ボットが7を出し、人間が捨て札を迫られている間、ボットは手番を進めてはいけない。
+// （進めると resolvingSeven が宙に浮き、人間の endTurn が永久に無効化されて「進めない」）。
+run(`(() => {
+  state.phase = 'play'; state.gameOver = false; state.resolvingSeven = false;
+  state.turn = 1; state.rolled = false; state.botBusy = true; state.mode = null; state.discardQueue = null;
+  state.players.forEach((p, i) => { p.resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 }; });
+  state.players[0].resources = { wood: 3, brick: 3, wheat: 3, sheep: 0, ore: 0 }; // 9枚 → 4枚捨てが必要
+  distributeRoll(3, 4); // 合計7
+  if (!state.resolvingSeven) throw new Error('7なのに resolvingSeven が立たない');
+  if (!(state.discardQueue && state.discardQueue.length === 1 && state.discardQueue[0] === 0)) throw new Error('人間の捨て札キューが作られない');
+  continueBotTurn(1, gameVersion); // 捨て札待ちなら早期return（修正点）。未修正だと runBotActions が走り botBusy を解除する
+  if (!state.botBusy) throw new Error('★ボットが捨て札待ち中に手番処理を実行した（botBusy解除＝バグ再発）');
+  if (!state.resolvingSeven) throw new Error('★捨て札完了前に resolvingSeven が解除された');
+  // 人間が4枚捨てる（wood3 + brick1）
+  ['wood','brick','wheat','sheep','ore'].forEach(k => document.querySelector('#discard-' + k).value = 0);
+  document.querySelector('#discard-wood').value = 3;
+  document.querySelector('#discard-brick').value = 1;
+  document.querySelector('#confirmDiscardBtn').onclick();
+  if (state.resolvingSeven) throw new Error('★捨て札後も resolvingSeven が残る（盗賊が動かず詰み）');
+  if (state.players[0].resources.wood !== 0 || state.players[0].resources.brick !== 2) throw new Error('捨て札が正しく反映されない');
+})()`);
+console.log('seven-discard wait test: PASS');

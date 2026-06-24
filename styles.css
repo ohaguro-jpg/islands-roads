@@ -167,3 +167,5 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 #board[data-size="huge"] .token small{margin-top:22px}
 .board-size-options{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:600px){.board-size-options{grid-template-columns:1fr}}
+.cc-btn.cc-recover{background:#b8842b;color:#fff}
+.cc-btn.cc-recover:hover{background:#a5741f}
