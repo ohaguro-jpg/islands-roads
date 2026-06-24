@@ -30,7 +30,7 @@ class Element {
 
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const button = new Element(); button.className = 'build-card'; button.dataset.build = type; return button; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -351,3 +351,51 @@ run(`(() => {
   if (state.players[0].resources.wood !== 0 || state.players[0].resources.brick !== 2) throw new Error('捨て札が正しく反映されない');
 })()`);
 console.log('seven-discard wait test: PASS');
+
+// 英雄の伝説（yuji オリジナル）: 各能力の確定的な部分を検証。
+run(`(() => {
+  gameConfig.expansionHeroes = true;
+  const savedHarbors = state.harbors, savedTurn = state.turn;
+  state.players.forEach(p => { p._hero = p.hero; p._bot = p.bot; p._res = p.resources; });
+  state.harbors = {};
+
+  // 港の主: 全資源 2:1
+  state.players[0].hero = 'harbormaster';
+  ['wood','brick','wheat','sheep','ore'].forEach(r => { if (maritimeRate(0, r) !== 2) throw new Error('港の主: ' + r + ' が2:1でない=' + maritimeRate(0, r)); });
+  state.players[0].hero = null;
+  if (maritimeRate(0, 'wood') !== 4) throw new Error('港なしは4:1のはず=' + maritimeRate(0, 'wood'));
+
+  // 天才建築家: 街道が木材不要（レンガ1のみ）
+  state.players[0].hero = 'architect';
+  const rc = effectiveCost('road', 0);
+  if (rc.wood !== undefined || rc.brick !== 1) throw new Error('建築家: 街道コストが木材不要になっていない ' + JSON.stringify(rc));
+  state.players[0].hero = null;
+
+  // 歴戦の将軍: 15枚は捨て不要・16枚で捨て対象
+  state.players.forEach(p => { p.bot = true; p.resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 }; });
+  state.players[1].hero = 'general'; state.players[1].bot = false; state.turn = 2;
+  state.players[1].resources.wood = 15; state.resolvingSeven = false; state.discardQueue = null;
+  resolveSeven(2);
+  if (state.discardQueue.includes(1)) throw new Error('将軍: 15枚で捨て対象になった');
+  state.resolvingSeven = false; state.players[1].resources.wood = 16;
+  resolveSeven(2);
+  if (!state.discardQueue.includes(1)) throw new Error('将軍: 16枚で捨て対象にならない');
+  state.resolvingSeven = false; state.discardQueue = null;
+
+  // 不屈の守人: 盗まれない / 強欲の徴税官: 2枚奪う
+  state.players[2].hero = 'guardian';
+  if (robbable(2)) throw new Error('守人がrobbable');
+  if (!robbable(0)) throw new Error('通常がrobbableでない');
+  state.players[3].hero = 'taxman';
+  state.players[0].resources = { wood: 3, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  state.players[3].resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  state.turn = 3;
+  stealFromVictim(0);
+  if (state.players[3].resources.wood !== 2) throw new Error('徴税官が2枚奪わない=' + state.players[3].resources.wood);
+
+  // 後片付け
+  state.players.forEach(p => { p.hero = p._hero; p.bot = p._bot; p.resources = p._res; delete p._hero; delete p._bot; delete p._res; });
+  state.harbors = savedHarbors; state.turn = savedTurn; state.resolvingSeven = false; state.discardQueue = null;
+  gameConfig.expansionHeroes = false;
+})()`);
+console.log('heroes (yuji original) test: PASS');

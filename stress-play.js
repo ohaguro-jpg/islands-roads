@@ -29,7 +29,7 @@ class Element {
 }
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const b = new Element(); b.className = 'build-card'; b.dataset.build = type; return b; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -105,7 +105,8 @@ function drain(tag) { let g = 0; do { flush(); } while (resolveHumanInterrupts(t
 function playGame(size, diff, seed) {
   const tag = `[${size}/${diff}/seed${seed}]`;
   rng = mulberry32(seed >>> 0);
-  run(`gameConfig={playerName:'T',humanCount:1,humanNames:['T'],npcCount:3,boardMode:'random',boardSize:${JSON.stringify(size)},difficulty:${JSON.stringify(diff)},botSpeed:'fast',targetScore:10,music:false,expansion:null,expansionHeroes:false,expansionBarbarians:false};`);
+  const heroes = (seed % 2 === 0); // 半分のゲームで英雄の伝説をON（gambler/守人/徴税官の経路も叩く）
+  run(`gameConfig={playerName:'T',humanCount:1,humanNames:['T'],npcCount:3,boardMode:'random',boardSize:${JSON.stringify(size)},difficulty:${JSON.stringify(diff)},botSpeed:'fast',targetScore:10,music:false,expansion:null,expansionHeroes:${heroes},expansionBarbarians:false};`);
   run('newGame()'); flush();
   setupPhase(tag);
   let round = 0;
@@ -115,6 +116,11 @@ function playGame(size, diff, seed) {
     // keep hand <=7 so no discard dialog is needed
     run('(function(){const r=state.players[0].resources,k=Object.keys(r);let t=k.reduce((a,x)=>a+r[x],0),gi=0;while(t>7){const key=k[gi%k.length];if(r[key]>0){r[key]--;t--;}gi++;}})()');
     if (!run('state.rolled')) run('rollDice()');
+    // 強運の博徒(人間)の振り直しダイアログが出ていたら駆動する（出目を確定）
+    if (!run('state.rolled') && run('!!document.querySelector("#gamblerKeep").onclick')) {
+      run((seed % 4 === 0) ? 'document.querySelector("#gamblerReroll").onclick()' : 'document.querySelector("#gamblerKeep").onclick()');
+    }
+    if (!run('state.rolled')) throw new Error(`${tag} ダイスを振っても確定しない（gamblerダイアログ滞留の疑い）`);
     drain(tag);
     if (run('state.resolvingSeven')) throw new Error(`${tag} ★resolvingSevenが解除されず詰み（人間の手番・endTurn永久無効）`);
     if (!run('state.rolled')) throw new Error(`${tag} ダイス後にrolledが立たない`);

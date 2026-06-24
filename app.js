@@ -52,13 +52,17 @@ function harborTypeList(count) {
 const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
 // Hero Pack (Claude Original) — each player receives one passive hero ability
 const HEROES = [
-  { id: 'farmer',    icon: '🌾', name: '豊穣の農夫',   desc: '農地タイルが出るたびに隣接する建物から +1 小麦追加' },
-  { id: 'smith',     icon: '⚒',  name: '熟練の鍛冶師', desc: '都市へ発展するコストが鉱石 2（通常 3 より −1）' },
-  { id: 'merchant',  icon: '🛒', name: '旅の商人',      desc: '銀行・港との交換レートが常時 3:1' },
-  { id: 'general',   icon: '🗡',  name: '歴戦の将軍',   desc: '手札が 8 枚以下なら 7 が出ても捨て不要' },
-  { id: 'architect', icon: '🏗',  name: '天才建築家',   desc: '街道の建設コストがレンガ 1 枚のみ（木材不要）' },
-  { id: 'sage',      icon: '🔮', name: '古の賢者',      desc: '発展カード購入時に 2 枚引いて好きな 1 枚を選べる' },
+  { id: 'general',     icon: '🗡', name: '歴戦の将軍',   desc: '手札が 15 枚以下なら 7 が出ても捨て不要（16 枚以上で半分捨て）' },
+  { id: 'architect',   icon: '🏗', name: '天才建築家',   desc: '街道の建設コストがレンガ 1 枚のみ（木材不要）' },
+  { id: 'sage',        icon: '🔮', name: '古の賢者',      desc: '発展カード購入時に 2 枚引いて好きな 1 枚を選べる' },
+  { id: 'guardian',    icon: '🛡', name: '不屈の守人',   desc: '盗賊で資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない' },
+  { id: 'gambler',     icon: '🎲', name: '強運の博徒',   desc: '自分の手番、ダイスを 1 回だけ振り直せる' },
+  { id: 'taxman',      icon: '💰', name: '強欲の徴税官', desc: '7 を出して盗む時、2 枚奪える' },
+  { id: 'harbormaster', icon: '🌊', name: '港の主',      desc: '銀行・港との交換が全資源 2:1' },
 ];
+// Hero is only set when the expansion is on; helpers used by robber/steal logic.
+function robbable(player) { return state.players[player]?.hero !== 'guardian'; }   // guardian can't be stolen from
+function stealCount(player) { return state.players[player]?.hero === 'taxman' ? 2 : 1; } // taxman robs 2
 // Barbarian Pack (Cities & Knights inspired) — barbarians invade every N turns
 const BARBARIAN_STEPS = 7;
 // Seafarers expansion constants
@@ -293,7 +297,7 @@ function newGame() {
     players,
     buildings: {}, roads: {}, harbors: {}, ships: {}, bank: { wood: 19, brick: 19, wheat: 19, sheep: 19, ore: 19 }, robberTile: null, pendingRobberTile: null, pirateTile: null, pendingPirateTile: null, freeRoads: 0, recentBotMoves: [], longestRoadOwner: null, largestArmyOwner: null,
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
-    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false,
+    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false, rerollUsed: false,
     islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null,
     movedShipThisTurn: false, shipsBuiltThisTurn: [], barbarianStep: 0
   };
@@ -789,7 +793,6 @@ function effectiveCost(type, player) {
   const base = { ...COSTS[type] };
   if (!state || !state.players[player]) return base;
   const hero = state.players[player].hero;
-  if (type === 'city' && hero === 'smith') base.ore = Math.max(0, (base.ore || 0) - 1);
   if (type === 'road' && hero === 'architect') delete base.wood;
   return base;
 }
@@ -832,7 +835,7 @@ function maritimeRate(player, resource) {
     if (type === resource) rate = 2;
     else if (type == null) rate = Math.min(rate, 3);
   });
-  if (state.players[player]?.hero === 'merchant') rate = Math.min(rate, 3);
+  if (state.players[player]?.hero === 'harbormaster') rate = Math.min(rate, 2); // 港の主: 全資源 2:1
   return rate;
 }
 
@@ -1310,12 +1313,36 @@ function rollDice() {
   state.recentBotMoves = [];
   const a = 1 + Math.floor(Math.random() * 6);
   const b = 1 + Math.floor(Math.random() * 6);
+  // 強運の博徒: 出目を確定する前に1回だけ振り直せる
+  if (state.players[state.turn].hero === 'gambler' && !state.rerollUsed) { offerGamblerReroll(a, b); return; }
+  finalizeRoll(a, b);
+}
+
+function finalizeRoll(a, b) {
   soundEffect('dice');
   distributeRoll(a, b);
   state.rolled = true;
   $('#diceResult').innerHTML = `<span>${a}</span><span>${b}</span>`;
   render();
   showDiceOverlay(a, b, state.players[state.turn].name);
+}
+
+function offerGamblerReroll(a, b) {
+  $('#modalClose').hidden = true;
+  $('#modalContent').innerHTML = `<div style="text-align:center">
+    <h2>🎲 強運の博徒</h2>
+    <p>出目は <b style="font-size:22px">${a}</b> と <b style="font-size:22px">${b}</b>（合計 <b>${a + b}</b>）。<br>1ターンに1回だけ振り直せます。</p>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button id="gamblerKeep" style="flex:1;padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-weight:700">この目でいく</button>
+      <button id="gamblerReroll" style="flex:1;padding:14px;border:0;border-radius:10px;background:var(--ink);color:#fff;cursor:pointer;font-weight:700">🎲 振り直す</button>
+    </div></div>`;
+  $('#modal').showModal();
+  $('#gamblerKeep').onclick = () => { $('#modal').close(); $('#modalClose').hidden = false; finalizeRoll(a, b); };
+  $('#gamblerReroll').onclick = () => {
+    state.rerollUsed = true;
+    $('#modal').close(); $('#modalClose').hidden = false;
+    finalizeRoll(1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6));
+  };
 }
 
 function showDiceOverlay(a, b, playerName) {
@@ -1376,7 +1403,9 @@ function distributeRoll(a, b) {
   Object.entries(state.buildings).forEach(([vertex, building]) => {
     vertices[vertex].tiles.forEach(tileIndex => {
       const tile = tiles[tileIndex];
-      if (tileIndex === state.robberTile || tile.num !== sum) return;
+      if (tile.num !== sum) return;
+      // 不屈の守人は盗賊が乗っても生産が止まらない
+      if (tileIndex === state.robberTile && state.players[building.player]?.hero !== 'guardian') return;
       if (tile.type === 'gold') {
         const amount = building.type === 'city' ? 2 : 1;
         goldClaims.push({ player: building.player, amount });
@@ -1387,18 +1416,6 @@ function distributeRoll(a, b) {
       }
     });
   });
-  // Farmer hero: +1 wheat when a fields tile rolls
-  if (gameConfig.expansionHeroes) {
-    Object.entries(state.buildings).forEach(([vertex, building]) => {
-      if (state.players[building.player]?.hero !== 'farmer') return;
-      vertices[vertex].tiles.forEach(tileIndex => {
-        const tile = tiles[tileIndex];
-        if (tileIndex !== state.robberTile && tile.num === sum && tile.type === 'fields') {
-          claims.wheat.push({ player: building.player, amount: 1 });
-        }
-      });
-    });
-  }
   Object.entries(claims).forEach(([resource, requests]) => {
     const total = requests.reduce((sum, request) => sum + request.amount, 0);
     const recipients = new Set(requests.map(request => request.player));
@@ -1442,7 +1459,7 @@ function resolveSeven(roller) {
   // NPCは自動で半分を捨てる。人間は順番にダイアログで捨てる。
   state.players.forEach((player, i) => {
     if (!player.bot) return;
-    const limit = player.hero === 'general' ? 8 : 7;
+    const limit = player.hero === 'general' ? 15 : 7;
     const count = handTotal(player);
     if (count <= limit) return;
     for (let k = 0; k < Math.floor(count / 2); k++) {
@@ -1451,7 +1468,7 @@ function resolveSeven(roller) {
     }
   });
   state.sevenRoller = roller;
-  state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > (state.players[i].hero === 'general' ? 8 : 7));
+  state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > (state.players[i].hero === 'general' ? 15 : 7));
   state.resolvingSeven = true;
   render();
   processDiscardQueue();
@@ -1525,7 +1542,7 @@ function confirmPiratePlacement() {
   const victims = [...new Set(tiles[tileIndex].vertices.map(vertex => {
     const ship = Object.entries(state.ships).find(([ei]) => edges[ei].a === vertex || edges[ei].b === vertex);
     return ship ? state.ships[ship[0]] : null;
-  }).filter(p => p != null && p !== state.turn && randomOwnedResource(p)))];
+  }).filter(p => p != null && p !== state.turn && robbable(p) && randomOwnedResource(p)))];
   if (victims.length === 0) {
     state.resolvingSeven = false;
     render();
@@ -1549,7 +1566,7 @@ function movePirateAndSteal(roller) {
   const victims = [...new Set(tiles[state.pirateTile].vertices.map(vertex => {
     const ship = Object.entries(state.ships).find(([ei]) => edges[ei].a === vertex || edges[ei].b === vertex);
     return ship ? state.ships[ship[0]] : null;
-  }).filter(p => p != null && p !== roller && randomOwnedResource(p)))];
+  }).filter(p => p != null && p !== roller && robbable(p) && randomOwnedResource(p)))];
   if (victims.length) stealFromVictim(victims[Math.floor(Math.random() * victims.length)]);
 }
 
@@ -1623,7 +1640,7 @@ function confirmRobberPlacement() {
   state.pendingRobberTile = null;
   state.mode = null;
   soundEffect('robber');
-  const victims = [...new Set(tiles[tileIndex].vertices.map(vertex => state.buildings[vertex]?.player).filter(player => player != null && player !== state.turn && randomOwnedResource(player)))];
+  const victims = [...new Set(tiles[tileIndex].vertices.map(vertex => state.buildings[vertex]?.player).filter(player => player != null && player !== state.turn && robbable(player) && randomOwnedResource(player)))];
   if (victims.length === 0) {
     state.resolvingSeven = false;
     render();
@@ -1639,16 +1656,17 @@ function confirmRobberPlacement() {
 }
 
 function stealFromVictim(victim) {
-  const resource = randomOwnedResource(victim);
-  let message = '盗賊を移動しました';
-  if (resource) {
+  let taken = 0;
+  for (let k = 0; k < stealCount(state.turn); k++) { // 強欲の徴税官は 2 枚
+    const resource = randomOwnedResource(victim);
+    if (!resource) break;
     state.players[victim].resources[resource]--;
     state.players[state.turn].resources[resource]++;
-    message = `${state.players[victim].name}から1枚獲得しました`;
+    taken++;
   }
   state.resolvingSeven = false;
   render();
-  toast(message);
+  toast(taken ? `${state.players[victim].name}から${taken}枚獲得しました` : '盗賊を移動しました');
 }
 
 function showStealDialog(victims) {
@@ -1712,6 +1730,7 @@ function advanceTurn() {
   state.botBusy = false;
   state.freeRoads = 0;
   state.mode = null;
+  state.rerollUsed = false;
   clearCardAction();
   state.turn = (state.turn + 1) % state.players.length;
   if (state.turn === 0) state.round++;
@@ -1813,8 +1832,14 @@ function botTurn() {
   const version = gameVersion;
   const playerIndex = state.turn;
   try {
-    const a = 1 + Math.floor(Math.random() * 6);
-    const b = 1 + Math.floor(Math.random() * 6);
+    let a = 1 + Math.floor(Math.random() * 6);
+    let b = 1 + Math.floor(Math.random() * 6);
+    // 強運の博徒(NPC)は7を引いたら一度だけ振り直して回避する
+    if (state.players[playerIndex].hero === 'gambler' && !state.rerollUsed && a + b === 7) {
+      state.rerollUsed = true;
+      a = 1 + Math.floor(Math.random() * 6);
+      b = 1 + Math.floor(Math.random() * 6);
+    }
     $('#diceResult').innerHTML = `<span>${a}</span><span>${b}</span>`;
     distributeRoll(a, b);
     state.rolled = true;
@@ -2104,13 +2129,16 @@ function moveRobberAndSteal(player) {
     return { index, score: score + Math.random() * (smart ? 0.3 : 1) };
   }).sort((a, b) => b.score - a.score)[0].index;
   state.robberTile = target;
-  const victims = [...new Set(tiles[target].vertices.map(vertex => state.buildings[vertex]?.player).filter(owner => owner != null && owner !== player && randomOwnedResource(owner)))];
+  const victims = [...new Set(tiles[target].vertices.map(vertex => state.buildings[vertex]?.player).filter(owner => owner != null && owner !== player && robbable(owner) && randomOwnedResource(owner)))];
   if (!victims.length) return;
   // Smart bots rob the player holding the most cards (and likely the leader); others pick at random.
   const victim = smart ? victims.sort((a, b) => handSize(b) - handSize(a))[0] : victims[Math.floor(Math.random() * victims.length)];
-  const resource = randomOwnedResource(victim);
-  state.players[victim].resources[resource]--;
-  state.players[player].resources[resource]++;
+  for (let k = 0; k < stealCount(player); k++) { // 徴税官のNPCは 2 枚
+    const resource = randomOwnedResource(victim);
+    if (!resource) break;
+    state.players[victim].resources[resource]--;
+    state.players[player].resources[resource]++;
+  }
 }
 
 function playDevelopment(player, card) {
@@ -2603,7 +2631,7 @@ function seafarersRulesHtml() {
 function heroesRulesHtml() {
   const mine = state?.players?.[0]?.hero ? HEROES.find(h => h.id === state.players[0].hero) : null;
   return `<div class="rules-seafarers">
-    <p class="rules-expansion-title">✦ 拡張：英雄の伝説（クロードオリジナル）</p>
+    <p class="rules-expansion-title">✦ 拡張：英雄の伝説（yuji オリジナル）</p>
     <p>ゲーム開始時、各プレイヤーに<b>固有の英雄</b>が1人ランダムで配られます。英雄の能力は<b>ゲーム中ずっと自動で発動</b>する常時効果です。プレイヤー名の横に英雄バッジが表示されます。</p>
     ${mine ? `<p class="rules-my-hero">あなたの英雄：<b>${mine.icon} ${mine.name}</b><br>${mine.desc}</p>` : ''}
     <ul class="rules-hero-list">
