@@ -24,13 +24,13 @@ class Element {
   append(element) { dynamic.push(element); }
   remove() { const index = dynamic.indexOf(this); if (index >= 0) dynamic.splice(index, 1); }
   add(option) { this.options.push(option); if (this.options.length === 1) this.value = option.value; }
-  showModal() {}
-  close() {}
+  showModal() { this.open = true; }
+  close() { this.open = false; }
 }
 
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll acceptProposalBtn rejectProposalBtn'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const button = new Element(); button.className = 'build-card'; button.dataset.build = type; return button; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -399,3 +399,18 @@ run(`(() => {
   gameConfig.expansionHeroes = false;
 })()`);
 console.log('heroes (yuji original) test: PASS');
+
+// 詰まり回帰: NPCの交換提案など「閉じられない必須モーダル」が開いている間は、
+// blockingModalOpen が true になり自動進行（ハートビート/ウォッチドッグ）が止まること。
+// また「進まない時」ボタン(recoverGame)で確実に解除できること。
+run(`(() => {
+  state.phase = 'play'; state.gameOver = false; state.turn = 1; state.botBusy = true; state.resolvingSeven = false; state.rolled = true;
+  state.players[0].resources = { wood: 1, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  showNpcProposalDialog(1, 'brick', 'wood', () => {});
+  if (!blockingModalOpen()) throw new Error('★必須モーダル中に blockingModalOpen=false（自動進行が止まらず詰まりの原因に）');
+  recoverGame();
+  if (blockingModalOpen()) throw new Error('★recoverGame後も blockingModalOpen=true（モーダルが閉じない）');
+  if ($('#modal').open) throw new Error('★recoverGame後もモーダルが開いている');
+  if (state.resolvingSeven) throw new Error('★recoverGameで resolvingSeven が解除されない');
+})()`);
+console.log('blocking-modal guard test: PASS');

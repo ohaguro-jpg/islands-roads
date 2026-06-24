@@ -25,11 +25,11 @@ class Element {
   append(element) { dynamic.push(element); }
   remove() { const i = dynamic.indexOf(this); if (i >= 0) dynamic.splice(i, 1); }
   add(option) { this.options.push(option); if (this.options.length === 1) this.value = option.value; }
-  showModal() {} close() {}
+  showModal() { this.open = true; } close() { this.open = false; }
 }
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll acceptProposalBtn rejectProposalBtn'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const b = new Element(); b.className = 'build-card'; b.dataset.build = type; return b; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -43,15 +43,26 @@ function queryAll(selector) {
 const document = { querySelector: s => ids[s.slice(1)] || dynamic.find(e => e.id === s.slice(1)), querySelectorAll: queryAll, createElement: () => new Element() };
 let rng = Math.random;
 const testMath = Object.create(Math); testMath.random = () => rng();
-const timers = [];
-const context = { document, Option: function (t, v) { this.value = v; }, console, Math: testMath, Date, window: {}, confirm: () => true, setTimeout: cb => { timers.push(cb); return timers.length; }, clearTimeout: () => {}, setInterval: () => 1, clearInterval: () => {} };
+// Discrete-event timer model: a virtual clock fires timers in DELAY order (not insertion order),
+// and clearTimeout actually cancels. This matters because the bot watchdog (5000ms) must fire
+// AFTER the trade-proposal/continue timer (650ms) — FIFO ordering fires them backwards and creates
+// fake "freezes". clearTimeout being a real cancel is also required (the no-op stub leaks timers).
+let timerSeq = 0, vnow = 0;
+const timerMap = new Map();
+const context = { document, Option: function (t, v) { this.value = v; }, console, Math: testMath, Date, window: {}, confirm: () => true, setTimeout: (cb, delay) => { const id = ++timerSeq; timerMap.set(id, { cb, at: vnow + (delay || 0), seq: id }); return id; }, clearTimeout: id => { timerMap.delete(id); }, setInterval: () => 1, clearInterval: () => {} };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('app.js', 'utf8'), context);
 const run = c => vm.runInContext(c, context);
-// NPC→human trade proposals open a modal the mock can't render; they are not what this test
-// exercises. Disable them so we can drive thousands of turns and focus on the 7/freeze path.
-run('maybeProposeNpcTrade = function(){ return false; };');
-function flush() { let g = 0; while (timers.length && g++ < 20000) timers.shift()(); }
+function flush() {
+  let g = 0;
+  while (timerMap.size && g++ < 20000) {
+    let next = null;
+    for (const t of timerMap.values()) if (!next || t.at < next.at || (t.at === next.at && t.seq < next.seq)) next = t;
+    timerMap.delete(next.seq);
+    vnow = next.at;
+    next.cb();
+  }
+}
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function avail(type) { return dynamic.filter(e => e.classList.contains(type) && e.classList.contains('available')); }
 
@@ -100,7 +111,19 @@ function resolveHumanInterrupts(tag) {
   }
   return acted;
 }
-function drain(tag) { let g = 0; do { flush(); } while (resolveHumanInterrupts(tag) && g++ < 80); }
+function drain(tag) {
+  let g = 0, acted;
+  do {
+    flush();
+    acted = resolveHumanInterrupts(tag);
+    // NPC→human の交換提案がボットの手番を止めている間、人間として応答する。
+    // （モックの modal.open は仮想クロックでレースするので、状態＝「botが停止中＆提案HTMLが生きている」で判定）
+    if (run('state.botBusy && state.turn !== 0 && !state.resolvingSeven') && run('($("#modalContent").innerHTML||"").indexOf("acceptProposalBtn")>=0') && run('!!document.querySelector("#acceptProposalBtn").onclick')) {
+      run((Number(tag.match(/seed(\d+)/)[1]) % 3 === 0) ? 'document.querySelector("#acceptProposalBtn").onclick()' : 'document.querySelector("#rejectProposalBtn").onclick()');
+      acted = true;
+    }
+  } while (acted && g++ < 200);
+}
 
 function playGame(size, diff, seed) {
   const tag = `[${size}/${diff}/seed${seed}]`;
@@ -111,7 +134,10 @@ function playGame(size, diff, seed) {
   setupPhase(tag);
   let round = 0;
   while (run('!state.gameOver') && round < 300) {
-    if (run('state.turn') !== 0) throw new Error(`${tag} 人間(0)に手番が戻らない turn=${run('state.turn')} round=${round}（ボット停止の疑い）`);
+    if (run('state.turn') !== 0) {
+      const diag = run('JSON.stringify({modalOpen:!!$("#modal").open, closeHidden:!!$("#modalClose").hidden, resolvingSeven:state.resolvingSeven, botBusy:state.botBusy, rolled:state.rolled, html:($("#modalContent").innerHTML||"").slice(0,40)})');
+      throw new Error(`${tag} 人間(0)に手番が戻らない turn=${run('state.turn')} round=${round} ${diag}`);
+    }
     if (run('currentIsBot()')) throw new Error(`${tag} player0がbot扱い`);
     // keep hand <=7 so no discard dialog is needed
     run('(function(){const r=state.players[0].resources,k=Object.keys(r);let t=k.reduce((a,x)=>a+r[x],0),gi=0;while(t>7){const key=k[gi%k.length];if(r[key]>0){r[key]--;t--;}gi++;}})()');

@@ -320,7 +320,7 @@ function startNpcHeartbeat() {
       return;
     }
     if (state.phase !== 'play') return;
-    if (state.resolvingSeven) return; // a human discard / robber move is pending — never auto-advance past it
+    if (state.resolvingSeven || blockingModalOpen()) return; // a required human choice is pending — never auto-advance past it
     if (!state.botBusy && !state.rolled) botTurn();
     else if (!state.botBusy && state.rolled && elapsed > 2200) advanceTurn();
     else if (state.botBusy && elapsed > 5000) {
@@ -655,7 +655,13 @@ function render() {
   $('#playersList').innerHTML = state.players.map((item, i) => {
     const isMe = viewer != null && i === viewer;
     const breakdown = (isMe && !setup) ? vpBreakdown(i) : '';
-    const vpText = state.gameOver ? `${totalVP(i)} / ${state.targetScore}` : `${visibleVP(i)} / ${state.targetScore}`;
+    const target = state.targetScore;
+    // 自分の行は「今の本当の点数（隠し勝利点込み）」を大きく、最低点は小さく。相手は最低点のみ。
+    const vpHtml = state.gameOver
+      ? `<small>勝利点</small>${totalVP(i)} / ${target}`
+      : (isMe
+        ? `<b class="vp-now" title="あなたの現在の勝利点（隠し勝利点カード込み）">${totalVP(i)}</b><small class="vp-min">最低 ${visibleVP(i)} / ${target}</small>`
+        : `<small>最低点</small>${visibleVP(i)} / ${target}`);
     const handCount = Object.values(item.resources).reduce((a, b) => a + b, 0);
     const devCount = item.dev.length + item.newDev.length;
     const stats = `手札${handCount} · 開拓地${countPieces(i, 'settlement')} · 都市${countPieces(i, 'city')} · 道${countPieces(i, 'road')} · 発展${devCount} · 騎士${item.playedKnights}`;
@@ -665,7 +671,7 @@ function render() {
       state.largestArmyOwner === i ? '<span class="award-badge army-award">⚔ 最大騎士力</span>' : '',
       heroData ? `<span class="award-badge hero-badge" title="${heroData.desc}">${heroData.icon} ${heroData.name}</span>` : ''
     ].join('');
-    return `<div class="player-row ${i === state.turn ? 'active' : ''}"><span class="avatar" style="background:${item.color}">${item.name[0]}</span><span class="player-name"><b>${item.name}${isMe ? ' (YOU)' : ''}${item.bot ? ' <small class="npc-tag">NPC</small>' : ''}</b><small>${stats}</small>${badges ? `<small class="award-row">${badges}</small>` : ''}${breakdown ? `<small class="vp-breakdown">${breakdown}</small>` : ''}</span><span class="vp"><small>${state.gameOver ? '勝利点' : '最低点'}</small>${vpText}</span></div>`;
+    return `<div class="player-row ${i === state.turn ? 'active' : ''}"><span class="avatar" style="background:${item.color}">${item.name[0]}</span><span class="player-name"><b>${item.name}${isMe ? ' (YOU)' : ''}${item.bot ? ' <small class="npc-tag">NPC</small>' : ''}</b><small>${stats}</small>${badges ? `<small class="award-row">${badges}</small>` : ''}${breakdown ? `<small class="vp-breakdown">${breakdown}</small>` : ''}</span><span class="vp">${vpHtml}</span></div>`;
   }).join('');
   const me = viewer != null ? state.players[viewer] : null;
   $('#handLabel').textContent = me ? `${me.name}の手札` : 'NPCの手番';
@@ -1696,6 +1702,10 @@ function endTurn() {
   advanceTurn();
 }
 
+// True while a modal demanding a required human choice is open (proposal, robber-steal, gambler
+// reroll, sage/gold/monopoly/plenty picks, 7-discard…). These all hide the modal's close button.
+function blockingModalOpen() { const modal = $('#modal'); return !!(modal && modal.open && $('#modalClose')?.hidden); }
+
 // Escape hatch for the player: un-stick a frozen game without losing progress.
 // Clears stalled bot timers, resolves a dangling "7" with no pending choice, closes a stuck
 // modal, and nudges the current bot to act. If there is no game, just reloads the page.
@@ -1705,17 +1715,24 @@ function recoverGame() {
   clearTimeout(botWatchdog);
   clearInterval(npcHeartbeat);
   state.botBusy = false;
-  const awaitingChoice = state.mode === 'robber' || state.mode === 'pirate' || (state.discardQueue && state.discardQueue.length);
-  if (state.resolvingSeven && !awaitingChoice) state.resolvingSeven = false;
-  if (state.pendingRobberTile != null || state.pendingPirateTile != null) { state.pendingRobberTile = null; state.pendingPirateTile = null; }
-  if ($('#modal')?.open && !awaitingChoice) { try { $('#modal').close(); } catch (e) {} $('#modalClose').hidden = false; }
+  // Recovery is a deliberate "I'm stuck" action — bail out of whatever dialog/choice is pending.
+  state.resolvingSeven = false;
+  state.discardQueue = null;
+  state.mode = null;
+  state.pendingRobberTile = null;
+  state.pendingPirateTile = null;
+  state.freeRoads = 0;
+  state.goldPickQueue = [];
+  if ($('#modal')?.open) { try { $('#modal').close(); } catch (e) {} }
+  $('#modalClose').hidden = false;
+  clearCardAction();
   state.awaitingPass = false;
   const overlay = $('#passScreen');
   if (overlay) { overlay.style.display = 'none'; overlay.classList.add('hidden'); }
   startNpcHeartbeat();
   render();
   if (state.phase === 'setup' && currentIsBot()) forceSetupNpc();
-  else if (state.phase === 'play' && currentIsBot()) { state.botBusy = false; botTurn(); }
+  else if (state.phase === 'play' && currentIsBot()) forceNpcProgress();
   render();
   toast('状態を復旧しました。まだ進まない場合はもう一度押すか「新しいゲーム」を試してください');
 }
@@ -1806,7 +1823,7 @@ function scheduleBotTurn(delay = 650) {
     if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver) botTurn();
   }, botDelay(delay));
   botWatchdog = setTimeout(() => {
-    if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver && !state.resolvingSeven) {
+    if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver && !state.resolvingSeven && !blockingModalOpen()) {
       state.botBusy = false;
       toast(`${state.players[expectedPlayer].name}の処理を復旧しました`);
       advanceTurn();
