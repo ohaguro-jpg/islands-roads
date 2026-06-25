@@ -30,7 +30,7 @@ class Element {
 
 const dynamic = [];
 const ids = {};
-'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll acceptProposalBtn rejectProposalBtn'.split(' ').forEach(id => ids[id] = new Element(id));
+'board turnName turnDot turnScore roundLabel playersList resourceGrid cardCount handLabel rollBtn endTurnBtn npcControlBtn playerTradeBtn playerTradeAllBtn tradeBtn setupGuide setupGuideTitle setupGuideText toast modalContent modal modalClose newGameBtn rulesBtn bgmBtn fullscreenBtn tradeGive tradeGet flexTrade playerTradeTarget zoomIn zoomOut soundBtn diceResult playDevBtn devCount devCardsList bankRate myHarbors robberConfirmOverlay startScreen playerNameInput startMusic startGameBtn offlineDiceOverlay offlineDicePlayer offlineDiceA offlineDiceB offlineDiceTotal rollLog rollLogList cancelCardBtn passScreen passName passSubtitle passAvatar passConfirmBtn extraNames humanName2 humanName3 humanName4 npcHint moveShipBtn shipBuildBtn pirateConfirmOverlay expansionHeroes expansionBarbarians barbPanel barbTrack barbInfo recoverBtn confirmDiscardBtn discard-wood discard-brick discard-wheat discard-sheep discard-ore gamblerKeep gamblerReroll gamblerPick acceptProposalBtn rejectProposalBtn'.split(' ').forEach(id => ids[id] = new Element(id));
 const buildButtons = ['road', 'settlement', 'city', 'development'].map(type => { const button = new Element(); button.className = 'build-card'; button.dataset.build = type; return button; });
 function queryAll(selector) {
   if (selector === '.build-card') return buildButtons;
@@ -414,3 +414,18 @@ run(`(() => {
   if (state.resolvingSeven) throw new Error('★recoverGameで resolvingSeven が解除されない');
 })()`);
 console.log('blocking-modal guard test: PASS');
+
+// 強運の博徒: ダイスを3回ふって、選ぶまで確定しない。選んだら確定する。
+run(`(() => {
+  gameConfig.expansionHeroes = true;
+  state.phase = 'play'; state.gameOver = false; state.turn = 0; state.rolled = false; state.rerollUsed = false; state.gamblerChoices = null; state.resolvingSeven = false;
+  state.players[0].hero = 'gambler'; state.players[0].bot = false;
+  rollDice();
+  if (!state.gamblerChoices || state.gamblerChoices.length !== 3) throw new Error('博徒: 3つの出目が出ない');
+  if (state.rolled) throw new Error('博徒: 選ぶ前に出目が確定してしまう');
+  chooseGamblerDie(1);
+  if (!state.rolled) throw new Error('博徒: 選んでも確定しない');
+  if (state.gamblerChoices) throw new Error('博徒: 選択後も候補が残る');
+  state.players[0].hero = null; state.players[0].bot = true; state.rerollUsed = false; gameConfig.expansionHeroes = false;
+})()`);
+console.log('gambler 3-roll test: PASS');

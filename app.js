@@ -56,7 +56,7 @@ const HEROES = [
   { id: 'architect',   icon: '🏗', name: '天才建築家',   desc: '街道の建設コストがレンガ 1 枚のみ（木材不要）' },
   { id: 'sage',        icon: '🔮', name: '古の賢者',      desc: '発展カード購入時に 2 枚引いて好きな 1 枚を選べる' },
   { id: 'guardian',    icon: '🛡', name: '不屈の守人',   desc: '盗賊で資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない' },
-  { id: 'gambler',     icon: '🎲', name: '強運の博徒',   desc: '自分の手番、ダイスを 1 回だけ振り直せる' },
+  { id: 'gambler',     icon: '🎲', name: '強運の博徒',   desc: '自分の手番、ダイスを 3 回ふって盤面を見ながら好きな 1 つを選べる' },
   { id: 'taxman',      icon: '💰', name: '強欲の徴税官', desc: '7 を出して盗む時、2 枚奪える' },
   { id: 'harbormaster', icon: '🌊', name: '港の主',      desc: '銀行・港との交換が全資源 2:1' },
 ];
@@ -297,7 +297,7 @@ function newGame() {
     players,
     buildings: {}, roads: {}, harbors: {}, ships: {}, bank: { wood: 19, brick: 19, wheat: 19, sheep: 19, ore: 19 }, robberTile: null, pendingRobberTile: null, pirateTile: null, pendingPirateTile: null, freeRoads: 0, recentBotMoves: [], longestRoadOwner: null, largestArmyOwner: null,
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
-    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false, rerollUsed: false,
+    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false, rerollUsed: false, gamblerChoices: null,
     islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null,
     movedShipThisTurn: false, shipsBuiltThisTurn: [], barbarianStep: 0
   };
@@ -761,6 +761,17 @@ function render() {
   $('#endTurnBtn').innerHTML = !setup && botTurnNow ? 'NPCを進める <b>→</b>' : 'ターン終了 <b>→</b>';
   $('#npcControlBtn').hidden = !botTurnNow || state.gameOver;
   $('#npcControlBtn').textContent = setup ? 'NPCの初期配置を進める →' : 'NPCを今すぐ進める →';
+  // 強運の博徒の出目選択バー（盤面を覆わないよう下部に表示）
+  const gp = $('#gamblerPick');
+  if (gp) {
+    if (state.gamblerChoices && !setup && !botTurnNow) {
+      gp.innerHTML = `<span class="gp-label">🎲 出た目から1つ選ぶ</span>` + state.gamblerChoices.map((pair, i) =>
+        `<button class="gp-opt${pair[0] + pair[1] === 7 ? ' gp-seven' : ''}" onclick="chooseGamblerDie(${i})"><span class="gp-dice"><b>${pair[0]}</b><b>${pair[1]}</b></span><small>合計 ${pair[0] + pair[1]}</small></button>`).join('');
+      gp.style.display = 'flex';
+    } else {
+      gp.style.display = 'none';
+    }
+  }
   if (!setup) refreshTradeTargets();
   const noTradePartners = !setup && allOpponents().length === 0;
   $('#playerTradeBtn').disabled = setup || state.resolvingSeven || botTurnNow || !state.rolled || noTradePartners;
@@ -1314,13 +1325,27 @@ function forceSetupNpc() {
   finishSetupTurn();
 }
 
+const rollDie = () => 1 + Math.floor(Math.random() * 6);
+
 function rollDice() {
   if (state.phase !== 'play' || state.rolled || currentIsBot()) return;
   state.recentBotMoves = [];
-  const a = 1 + Math.floor(Math.random() * 6);
-  const b = 1 + Math.floor(Math.random() * 6);
-  // 強運の博徒: 出目を確定する前に1回だけ振り直せる
-  if (state.players[state.turn].hero === 'gambler' && !state.rerollUsed) { offerGamblerReroll(a, b); return; }
+  // 強運の博徒: ダイスを3回ふって、盤面を見ながら好きな出目を1つ選べる（盤面を覆わない下部バーで選択）。
+  if (state.players[state.turn].hero === 'gambler' && !state.rerollUsed) {
+    state.gamblerChoices = [0, 1, 2].map(() => [rollDie(), rollDie()]);
+    render();
+    return;
+  }
+  finalizeRoll(rollDie(), rollDie());
+}
+
+// 博徒が選んだ出目で確定する
+function chooseGamblerDie(index) {
+  if (!state.gamblerChoices || !state.gamblerChoices[index]) return;
+  const [a, b] = state.gamblerChoices[index];
+  state.gamblerChoices = null;
+  state.rerollUsed = true;
+  render();
   finalizeRoll(a, b);
 }
 
@@ -1333,22 +1358,19 @@ function finalizeRoll(a, b) {
   showDiceOverlay(a, b, state.players[state.turn].name);
 }
 
-function offerGamblerReroll(a, b) {
-  $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<div style="text-align:center">
-    <h2>🎲 強運の博徒</h2>
-    <p>出目は <b style="font-size:22px">${a}</b> と <b style="font-size:22px">${b}</b>（合計 <b>${a + b}</b>）。<br>1ターンに1回だけ振り直せます。</p>
-    <div style="display:flex;gap:10px;margin-top:18px">
-      <button id="gamblerKeep" style="flex:1;padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-weight:700">この目でいく</button>
-      <button id="gamblerReroll" style="flex:1;padding:14px;border:0;border-radius:10px;background:var(--ink);color:#fff;cursor:pointer;font-weight:700">🎲 振り直す</button>
-    </div></div>`;
-  $('#modal').showModal();
-  $('#gamblerKeep').onclick = () => { $('#modal').close(); $('#modalClose').hidden = false; finalizeRoll(a, b); };
-  $('#gamblerReroll').onclick = () => {
-    state.rerollUsed = true;
-    $('#modal').close(); $('#modalClose').hidden = false;
-    finalizeRoll(1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6));
-  };
+// NPC博徒の出目評価: 自分の生産が最大の出目を選ぶ（7は資源ゼロ＝避ける傾向）。
+function gamblerRollScore(a, b, player) {
+  const sum = a + b;
+  if (sum === 7) return 0.4;
+  let total = 0;
+  Object.entries(state.buildings).forEach(([vertex, building]) => {
+    if (building.player !== player) return;
+    vertices[vertex].tiles.forEach(tileIndex => {
+      const tile = tiles[tileIndex];
+      if (tile.num === sum && tileIndex !== state.robberTile && TYPE_DATA[tile.type].res) total += building.type === 'city' ? 2 : 1;
+    });
+  });
+  return total + Math.random() * 0.3;
 }
 
 function showDiceOverlay(a, b, playerName) {
@@ -1723,6 +1745,7 @@ function recoverGame() {
   state.pendingPirateTile = null;
   state.freeRoads = 0;
   state.goldPickQueue = [];
+  state.gamblerChoices = null;
   if ($('#modal')?.open) { try { $('#modal').close(); } catch (e) {} }
   $('#modalClose').hidden = false;
   clearCardAction();
@@ -1748,6 +1771,7 @@ function advanceTurn() {
   state.freeRoads = 0;
   state.mode = null;
   state.rerollUsed = false;
+  state.gamblerChoices = null;
   clearCardAction();
   state.turn = (state.turn + 1) % state.players.length;
   if (state.turn === 0) state.round++;
@@ -1851,11 +1875,12 @@ function botTurn() {
   try {
     let a = 1 + Math.floor(Math.random() * 6);
     let b = 1 + Math.floor(Math.random() * 6);
-    // 強運の博徒(NPC)は7を引いたら一度だけ振り直して回避する
-    if (state.players[playerIndex].hero === 'gambler' && !state.rerollUsed && a + b === 7) {
+    // 強運の博徒(NPC): 3回ふって自分の生産が最大の出目を選ぶ
+    if (state.players[playerIndex].hero === 'gambler' && !state.rerollUsed) {
       state.rerollUsed = true;
-      a = 1 + Math.floor(Math.random() * 6);
-      b = 1 + Math.floor(Math.random() * 6);
+      const best = [[a, b], [rollDie(), rollDie()], [rollDie(), rollDie()]]
+        .sort((x, y) => gamblerRollScore(y[0], y[1], playerIndex) - gamblerRollScore(x[0], x[1], playerIndex))[0];
+      a = best[0]; b = best[1];
     }
     $('#diceResult').innerHTML = `<span>${a}</span><span>${b}</span>`;
     distributeRoll(a, b);
