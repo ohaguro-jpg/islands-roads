@@ -319,6 +319,9 @@ const boardSizes = run(`(() => {
     const zeroEdges = edges.filter(e => Math.hypot(vertices[e.a].x - vertices[e.b].x, vertices[e.a].y - vertices[e.b].y) < 1).length;
     if (zeroEdges) throw new Error('盤面' + size + ': 長さ0の辺=頂点dedup失敗 x' + zeroEdges);
     if (vertices.some(v => v.tiles.length > 3)) throw new Error('盤面' + size + ': 4タイル超に接する頂点');
+    // 近接重複頂点（丸め誤差で共有頂点が二重登録され、道の接続が壊れる回帰の防止）
+    const nearDup = vertices.some((v, i) => vertices.some((w, j) => j > i && (v.x - w.x) ** 2 + (v.y - w.y) ** 2 < 100));
+    if (nearDup) throw new Error('盤面' + size + ': ★近接重複頂点あり（道が置けない/反映されないの原因）');
     if (Object.keys(state.harbors).length < 2) throw new Error('盤面' + size + ': 港が生成されない');
     out[size] = { tiles: tiles.length, vertices: vertices.length, edges: edges.length };
   }

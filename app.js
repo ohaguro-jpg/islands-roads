@@ -365,18 +365,20 @@ function buildBoard() {
     element.onclick = () => placeRobber(i);
     board.append(element);
   });
-  const vertexMap = new Map();
+  // Merge shared corners by PROXIMITY (not a rounded pixel key). On small-hex boards (大型/巨大)
+  // the sqrt(3) y-term makes a shared corner round to a 1px-different key on adjacent tiles,
+  // splitting it into two vertices and breaking road/settlement connectivity. Distinct vertices
+  // are ~U apart, so merging anything within 0.4·U is safe.
+  const vtxTolSq = (U * 0.4) ** 2;
   tiles.forEach((tile, tileIndex) => {
     for (let corner = 0; corner < 6; corner++) {
       const angle = Math.PI / 3 * corner;
-      const x = Math.round(tile.x + U * Math.cos(angle));
-      const y = Math.round(tile.y + U * Math.sin(angle));
-      const key = `${x},${y}`;
-      let vertexIndex = vertexMap.get(key);
-      if (vertexIndex == null) {
+      const x = tile.x + U * Math.cos(angle);
+      const y = tile.y + U * Math.sin(angle);
+      let vertexIndex = vertices.findIndex(v => (v.x - x) ** 2 + (v.y - y) ** 2 < vtxTolSq);
+      if (vertexIndex < 0) {
         vertexIndex = vertices.length;
-        vertexMap.set(key, vertexIndex);
-        vertices.push({ x, y, tiles: [] });
+        vertices.push({ x: Math.round(x), y: Math.round(y), tiles: [] });
       }
       vertices[vertexIndex].tiles.push(tileIndex);
       tile.vertices.push(vertexIndex);
@@ -497,15 +499,16 @@ function buildSeafarersBoard() {
     }
     board.append(el);
   });
-  const vertexMap = new Map();
+  // Proximity merge (same reasoning as the base board): a rounded pixel key splits shared corners
+  // on these small hexes, breaking connectivity. Distinct vertices are ~S apart.
+  const vtxTolSq = (S * 0.4) ** 2;
   tiles.forEach((tile, tileIndex) => {
     for (let corner = 0; corner < 6; corner++) {
       const angle = Math.PI / 3 * corner;
-      const x = Math.round(tile.x + S * Math.cos(angle));
-      const y = Math.round(tile.y + S * Math.sin(angle));
-      const key = `${x},${y}`;
-      let vi = vertexMap.get(key);
-      if (vi == null) { vi = vertices.length; vertexMap.set(key, vi); vertices.push({ x, y, tiles: [] }); }
+      const x = tile.x + S * Math.cos(angle);
+      const y = tile.y + S * Math.sin(angle);
+      let vi = vertices.findIndex(v => (v.x - x) ** 2 + (v.y - y) ** 2 < vtxTolSq);
+      if (vi < 0) { vi = vertices.length; vertices.push({ x: Math.round(x), y: Math.round(y), tiles: [] }); }
       vertices[vi].tiles.push(tileIndex);
       tile.vertices.push(vi);
     }
