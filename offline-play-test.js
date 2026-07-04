@@ -456,3 +456,49 @@ run(`(() => {
   if (pieceLimitsFor('standard', 20).settlement <= pieceLimitsFor('standard', 10).settlement) throw new Error('20点の駒が10点より多くない');
 })()`);
 console.log('piece limits test: PASS');
+
+// 難易度: 各ランクが1段ずつ強くなっており(旧easy<新easy<...)、最強(master)だけ
+// elite（最長交易路を狙う・交易がシビア/頻繁）を持つこと。
+run(`(() => {
+  const order = ['easy', 'normal', 'hard', 'expert', 'master'];
+  for (let i = 1; i < order.length; i++) {
+    if (DIFFICULTY[order[i]].actions <= DIFFICULTY[order[i - 1]].actions) throw new Error(order[i] + 'の手数が' + order[i - 1] + '以下');
+  }
+  if (!DIFFICULTY.master.elite) throw new Error('最強にeliteが付いていない');
+  ['easy', 'normal', 'hard', 'expert'].forEach(k => { if (DIFFICULTY[k].elite) throw new Error(k + 'にeliteが付いてしまっている'); });
+
+  // roadValue: elite(最強)は「その道を置くと最長交易路がどれだけ伸びるか」を加点する。
+  // 同じ辺で normal(elite無し) と master(elite有り) のスコア差を比べ、ボーナス分だけを検証する
+  // （地形由来の開拓地スコアは同じ辺なら共通なので、差分を取れば打ち消せる）。
+  const savedRoads = state.roads, savedBuildings = state.buildings, savedDiff = gameConfig.difficulty;
+  state.roads = {}; state.buildings = {};
+  const chain = [];
+  let v = 0;
+  for (let i = 0; i < 6 && chain.length < 4; i++) {
+    const e = edges.findIndex((edge, idx) => !chain.includes(idx) && (edge.a === v || edge.b === v));
+    if (e < 0) break;
+    state.roads[e] = 1; chain.push(e);
+    v = edges[e].a === v ? edges[e].b : edges[e].a;
+  }
+  const beforeLen = longestRoadLength(1);
+  const extendEdge = edges.findIndex((edge, idx) => !chain.includes(idx) && (edge.a === v || edge.b === v));
+  const isolatedEdge = edges.findIndex((edge, idx) => !chain.includes(idx) && idx !== extendEdge &&
+    !chain.some(ci => edges[ci].a === edge.a || edges[ci].a === edge.b || edges[ci].b === edge.a || edges[ci].b === edge.b));
+  if (extendEdge < 0 || isolatedEdge < 0) throw new Error('テスト前提: 適切な辺が見つからない');
+  state.roads[extendEdge] = 1;
+  if (longestRoadLength(1) <= beforeLen) throw new Error('テスト前提: extendEdgeが交易路を伸ばさない');
+  delete state.roads[extendEdge];
+
+  gameConfig.difficulty = 'normal'; const normalScore = roadValue(extendEdge, 1);
+  gameConfig.difficulty = 'master'; const eliteScore = roadValue(extendEdge, 1);
+  if (eliteScore - normalScore < 2) throw new Error('最強: 交易路を伸ばす道にeliteボーナスが乗らない normal=' + normalScore + ' elite=' + eliteScore);
+
+  gameConfig.difficulty = 'normal'; const normalScore2 = roadValue(isolatedEdge, 1);
+  gameConfig.difficulty = 'master'; const eliteScore2 = roadValue(isolatedEdge, 1);
+  if (eliteScore2 - normalScore2 > 0.01) throw new Error('最強: 交易路を伸ばさない道にまでボーナスが乗ってしまう');
+
+  if (Object.keys(state.roads).some(k => !chain.includes(Number(k)))) throw new Error('roadValueの仮置きが元に戻っていない');
+  gameConfig.difficulty = savedDiff;
+  state.roads = savedRoads; state.buildings = savedBuildings;
+})()`);
+console.log('difficulty ranks test: PASS');

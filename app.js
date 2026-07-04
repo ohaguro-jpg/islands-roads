@@ -96,12 +96,15 @@ let botWatchdog = null;
 let gameConfig = { playerName: 'あなた', boardMode: 'default', boardSize: 'standard', music: true, difficulty: 'normal', botSpeed: 'normal' };
 const BOT_SPEED = { slow: 1.7, normal: 1, fast: .35 };
 const botDelay = ms => Math.round(ms * (BOT_SPEED[gameConfig.botSpeed] || 1));
+// 各ランクを1段ずつ底上げ（旧easy→新easyは無し、旧normal→新easy、旧hard→新normal、
+// 旧expert→新hard、旧master→新expert）。最強(master)はさらに一段上を新設し、手数を増量
+// した上で elite フラグ（最長交易路を積極的に狙う・交易がより頻繁かつシビア）を付与。
 const DIFFICULTY = {
-  easy:   { label: 'やさしい',   actions: 2,  smartRoad: false, bankTrade: false, devBuy: false, devChance: .15, smart: false },
-  normal: { label: 'ふつう',     actions: 4,  smartRoad: false, bankTrade: true,  devBuy: true,  devChance: .5,  smart: false },
-  hard:   { label: '強い',       actions: 6,  smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: .85, smart: false },
-  expert: { label: 'もっと強い', actions: 9,  smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true },
-  master: { label: '最強',       actions: 16, smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true }
+  easy:   { label: 'やさしい',   actions: 4,  smartRoad: false, bankTrade: true,  devBuy: true,  devChance: .5,  smart: false, elite: false },
+  normal: { label: 'ふつう',     actions: 6,  smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: .85, smart: false, elite: false },
+  hard:   { label: '強い',       actions: 9,  smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true,  elite: false },
+  expert: { label: 'もっと強い', actions: 16, smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true,  elite: false },
+  master: { label: '最強',       actions: 24, smartRoad: true,  bankTrade: true,  devBuy: true,  devChance: 1,   smart: true,  elite: true }
 };
 const botRules = () => DIFFICULTY[gameConfig.difficulty] || DIFFICULTY.normal;
 let audioContext = null;
@@ -1960,7 +1963,7 @@ function maybeProposeNpcTrade(player, onDone) {
   const give = keys.filter(key => key !== want && npc.resources[key] >= 2 && npcResourceNeed(player, key) < npcResourceNeed(player, want))
     .sort((a, b) => (npc.resources[b] - npcResourceNeed(player, b)) - (npc.resources[a] - npcResourceNeed(player, a)))[0];
   if (!give) return false;
-  if (Math.random() > .6) return false; // 毎ターンは提案しない
+  if (Math.random() > (botRules().elite ? .3 : .6)) return false; // 最強はより頻繁に交渉を持ちかける
   clearTimeout(botWatchdog);
   clearTimeout(botTimer);
   showNpcProposalDialog(player, give, want, onDone);
@@ -2013,10 +2016,18 @@ function prepareCost(player, type) {
 
 function roadValue(edgeIndex, player) {
   const edge = edges[edgeIndex];
-  return Math.max(...[edge.a, edge.b].map(vertex => {
+  const settleValue = Math.max(...[edge.a, edge.b].map(vertex => {
     if (state.buildings[vertex]) return 0;
     return canPlaceInitialSettlement(vertex) ? setupVertexScore(vertex) + 3 : 0.5;
   }));
+  if (!botRules().elite) return settleValue;
+  // 最強(elite)は最長交易路の称号(+2VP)も狙う。この道を置いたら自分の交易路が
+  // どれだけ伸びるかを仮置きして測り、伸びが大きい道を優先する。
+  const before = longestRoadLength(player);
+  state.roads[edgeIndex] = player;
+  const after = longestRoadLength(player);
+  delete state.roads[edgeIndex];
+  return settleValue + Math.max(0, after - before) * 2.5;
 }
 
 // Seafarers: a settlement spot is worth more on an undiscovered island (bonus VP)
@@ -2391,7 +2402,8 @@ function npcTradeDecision(target, give, get) {
   });
   const score = receiveValue / Math.max(.1, giveValue);
   const fairQuantity = getTotal <= giveTotal * 1.5;
-  const accept = fairQuantity && score >= .9;
+  // 最強(elite)は自分に有利な交換しか受けない（甘い交換を掴まされない）
+  const accept = fairQuantity && score >= (botRules().elite ? 1.05 : .9);
   return { accept, score, reason: accept ? '建設計画に合う' : fairQuantity ? '条件が見合わない' : '渡す枚数が多すぎる' };
 }
 
