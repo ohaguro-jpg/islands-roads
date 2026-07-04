@@ -39,6 +39,7 @@ function queryAll(selector) {
   if (selector === '.hex') return dynamic.filter(element => element.classList.contains('hex'));
   if (selector === '.node,.edge') return dynamic.filter(element => element.classList.contains('node') || element.classList.contains('edge'));
   if (selector === '.persistent-piece') return dynamic.filter(element => element.classList.contains('persistent-piece'));
+  if (selector === '.harbor') return dynamic.filter(element => element.classList.contains('harbor'));
   return [];
 }
 const document = { querySelector: selector => ids[selector.slice(1)] || dynamic.find(element => element.id === selector.slice(1)), querySelectorAll: queryAll, createElement: () => new Element() };
@@ -323,6 +324,17 @@ const boardSizes = run(`(() => {
     const nearDup = vertices.some((v, i) => vertices.some((w, j) => j > i && (v.x - w.x) ** 2 + (v.y - w.y) ** 2 < 100));
     if (nearDup) throw new Error('盤面' + size + ': ★近接重複頂点あり（道が置けない/反映されないの原因）');
     if (Object.keys(state.harbors).length < 2) throw new Error('盤面' + size + ': 港が生成されない');
+    // 港マーカーがタイルと重ならないこと（押し出し距離・サイズがhexの大きさ(U)に比例しているか）。
+    // 固定pxのままだと大型/巨大盤でタイルに対して相対的に大きく・近くなり重なって見づらくなる。
+    const harborEls = document.querySelectorAll('.harbor');
+    if (!harborEls.length) throw new Error('盤面' + size + ': 港マーカー要素が生成されない');
+    const U = BOARD_SIZES[size].unit;
+    harborEls.forEach(el => {
+      const w = parseFloat(el.style.width);
+      const cx = parseFloat(el.style.left) + w / 2, cy = parseFloat(el.style.top) + w / 2;
+      const minDist = Math.min(...tiles.map(t => Math.hypot(t.x - cx, t.y - cy)));
+      if (minDist / U < 1.15) throw new Error('盤面' + size + ': ★港がタイルに近すぎる（重なって見える）dist/U=' + (minDist / U).toFixed(2));
+    });
     out[size] = { tiles: tiles.length, vertices: vertices.length, edges: edges.length };
   }
   gameConfig.boardSize = savedSize; gameConfig.boardMode = savedMode;

@@ -446,8 +446,13 @@ function buildBoard() {
     state.harbors[harborEdge.b] = harborTypes[i];
     const midpoint = { x: (vertices[harborEdge.a].x + vertices[harborEdge.b].x) / 2, y: (vertices[harborEdge.a].y + vertices[harborEdge.b].y) / 2 };
     const length = Math.hypot(midpoint.x - 345, midpoint.y - 325) || 1;
-    const cx = midpoint.x + (midpoint.x - 345) / length * 42;
-    const cy = midpoint.y + (midpoint.y - 325) / length * 42;
+    // 押し出し距離とマーカーの見た目サイズは hex の大きさ(U)に比例させる。固定pxのままだと
+    // 小さいhex(大型/巨大盤)で港が相対的に大きく・タイルに近くなり重なって見づらくなる。
+    const harborScale = U / 64;
+    const harborPush = 42 * harborScale;
+    const harborSize = Math.max(30, Math.round(50 * harborScale));
+    const cx = midpoint.x + (midpoint.x - 345) / length * harborPush;
+    const cy = midpoint.y + (midpoint.y - 325) / length * harborPush;
     [harborEdge.a, harborEdge.b].forEach(v => {
       const dock = document.createElement('div');
       dock.className = 'harbor-dock';
@@ -459,8 +464,11 @@ function buildBoard() {
     });
     const marker = document.createElement('div');
     marker.className = 'harbor';
-    marker.style.left = `${cx - 25}px`;
-    marker.style.top = `${cy - 25}px`;
+    marker.style.left = `${cx - harborSize / 2}px`;
+    marker.style.top = `${cy - harborSize / 2}px`;
+    marker.style.width = `${harborSize}px`;
+    marker.style.height = `${harborSize}px`;
+    marker.style.fontSize = `${Math.max(9, Math.round(11 * harborScale))}px`;
     marker.textContent = harborTypes[i] ? `2${RESOURCES[harborTypes[i]].icon}` : '3:1';
     board.append(marker);
   }
