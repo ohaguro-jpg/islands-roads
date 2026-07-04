@@ -19,11 +19,23 @@ const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 };
 // hexes for a rounded mid-size board. `unit` is the hex radius in px — smaller for bigger
 // boards so they fit the same on-screen envelope (sea-ring / .board are fixed size).
 const BOARD_SIZES = {
-  standard: { label: '標準', n: 2, trimCorners: false, unit: 64, deserts: 1, harbors: 9,  pieces: { road: 15, settlement: 5, city: 4, ship: 15 } },
-  large:    { label: '大型', n: 3, trimCorners: true,  unit: 52, deserts: 2, harbors: 11, pieces: { road: 21, settlement: 7, city: 5, ship: 21 } },
-  huge:     { label: '巨大', n: 3, trimCorners: false, unit: 49, deserts: 2, harbors: 13, pieces: { road: 26, settlement: 8, city: 6, ship: 26 } }
+  standard: { label: '標準', n: 2, trimCorners: false, unit: 64, deserts: 1, harbors: 9 },
+  large:    { label: '大型', n: 3, trimCorners: true,  unit: 52, deserts: 2, harbors: 11 },
+  huge:     { label: '巨大', n: 3, trimCorners: false, unit: 49, deserts: 2, harbors: 13 }
 };
 function boardSizeConfig() { return BOARD_SIZES[gameConfig.boardSize] || BOARD_SIZES.standard; }
+// 駒の数を「盤面サイズ」と「勝利点」の両方で増やす。大きい盤・高得点でも駒切れで
+// 建てられなくならないように、建物だけで目標点を十分上回れる数を確保する。
+function pieceLimitsFor(sizeKey, targetScore) {
+  const sizeStep = { standard: 0, large: 1, huge: 2 }[sizeKey] || 0;
+  const scoreStep = targetScore >= 20 ? 2 : targetScore >= 15 ? 1 : 0;
+  return {
+    settlement: 5 + sizeStep + scoreStep * 2, // 開拓地: 1点/個
+    city:       4 + sizeStep + scoreStep,      // 都市: 2点/個
+    road:       15 + sizeStep * 4 + scoreStep * 4,
+    ship:       15 + sizeStep * 4 + scoreStep * 4
+  };
+}
 // Axial coords of all hexes for a size (optionally trimming the 6 corners of the hexagon).
 function boardCoords(cfg) {
   const N = cfg.n, coords = [];
@@ -335,7 +347,7 @@ function buildBoard() {
   const cfg = boardSizeConfig();
   const U = cfg.unit, hexH = Math.sqrt(3) * U;
   const isStandard = (gameConfig.boardSize || 'standard') === 'standard';
-  Object.assign(PIECE_LIMITS, cfg.pieces);
+  Object.assign(PIECE_LIMITS, pieceLimitsFor(gameConfig.boardSize || 'standard', gameConfig.targetScore || 10));
   const board = $('#board');
   board.innerHTML = '<div class="sea-ring"></div>';
   board.dataset.size = gameConfig.boardSize || 'standard';
@@ -461,6 +473,7 @@ function buildBoard() {
 
 function buildSeafarersBoard() {
   const board = $('#board');
+  Object.assign(PIECE_LIMITS, pieceLimitsFor('huge', gameConfig.targetScore || 10)); // 大きい盤なので駒も多め
   board.innerHTML = '';
   board.dataset.expansion = 'seafarers';
   vertices = [];

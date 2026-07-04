@@ -432,3 +432,15 @@ run(`(() => {
   state.players[0].hero = null; state.players[0].bot = true; state.rerollUsed = false; gameConfig.expansionHeroes = false;
 })()`);
 console.log('gambler 3-roll test: PASS');
+
+// 駒数: 盤サイズ・勝利点で増え、建物だけで目標点を十分上回れる（駒切れで詰まらない）。
+run(`(() => {
+  for (const [sz, t] of [['standard', 10], ['standard', 15], ['standard', 20], ['large', 15], ['huge', 10], ['huge', 20]]) {
+    const p = pieceLimitsFor(sz, t);
+    const maxBuildVP = p.settlement + p.city * 2;
+    if (maxBuildVP < t) throw new Error('駒不足 ' + sz + '/' + t + '点: 建物最大VP=' + maxBuildVP + ' < 目標' + t);
+  }
+  if (pieceLimitsFor('huge', 10).settlement <= pieceLimitsFor('standard', 10).settlement) throw new Error('巨大盤の駒が標準より多くない');
+  if (pieceLimitsFor('standard', 20).settlement <= pieceLimitsFor('standard', 10).settlement) throw new Error('20点の駒が10点より多くない');
+})()`);
+console.log('piece limits test: PASS');
