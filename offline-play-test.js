@@ -374,9 +374,15 @@ run(`(() => {
   state.players.forEach(p => { p._hero = p.hero; p._bot = p.bot; p._res = p.resources; });
   state.harbors = {};
 
-  // 港の主: 全資源 2:1
+  // 港の主: 港を持っていれば全資源 2:1（港を持たないうちは対象外。詳細は harbormaster requires harbor test）
   state.players[0].hero = 'harbormaster';
+  const hmVertex = vertices.findIndex((_, i) => canPlaceInitialSettlement(i));
+  const savedHmBuilding = state.buildings[hmVertex];
+  state.harbors[hmVertex] = null; // 3:1港
+  state.buildings[hmVertex] = { player: 0, type: 'settlement' };
   ['wood','brick','wheat','sheep','ore'].forEach(r => { if (maritimeRate(0, r) !== 2) throw new Error('港の主: ' + r + ' が2:1でない=' + maritimeRate(0, r)); });
+  delete state.harbors[hmVertex];
+  if (savedHmBuilding) state.buildings[hmVertex] = savedHmBuilding; else delete state.buildings[hmVertex];
   state.players[0].hero = null;
   if (maritimeRate(0, 'wood') !== 4) throw new Error('港なしは4:1のはず=' + maritimeRate(0, 'wood'));
 
@@ -502,3 +508,39 @@ run(`(() => {
   state.roads = savedRoads; state.buildings = savedBuildings;
 })()`);
 console.log('difficulty ranks test: PASS');
+
+// 港の主: 港を1つも持っていないうちは2:1にならない（港を持って初めて全資源2:1が有効になる）。
+run(`(() => {
+  gameConfig.expansionHeroes = true;
+  const savedHarbors = state.harbors, savedBuildings = state.buildings;
+  state.players[0].hero = 'harbormaster';
+  state.harbors = {}; state.buildings = {};
+  if (maritimeRate(0, 'wood') !== 4) throw new Error('港の主: 港を持たないのに2:1(またはそれ以上お得)になっている rate=' + maritimeRate(0, 'wood'));
+  // 港(3:1)を持たせると、全資源が2:1になる
+  const v = vertices.findIndex((_, i) => canPlaceInitialSettlement(i));
+  state.harbors[v] = null; // 3:1港
+  state.buildings[v] = { player: 0, type: 'settlement' };
+  ['wood', 'brick', 'wheat', 'sheep', 'ore'].forEach(r => { if (maritimeRate(0, r) !== 2) throw new Error('港の主: 港を持った後も2:1にならない ' + r + '=' + maritimeRate(0, r)); });
+  state.players[0].hero = null; gameConfig.expansionHeroes = false;
+  state.harbors = savedHarbors; state.buildings = savedBuildings;
+})()`);
+console.log('harbormaster requires harbor test: PASS');
+
+// 強運の博徒: 3択が出ている間は「ダイスを振る」を連打しても選択肢が上書きされない（無限リロール防止）。
+run(`(() => {
+  gameConfig.expansionHeroes = true;
+  state.phase = 'play'; state.turn = 0; state.rolled = false; state.rerollUsed = false; state.gamblerChoices = null;
+  state.players[0].hero = 'gambler'; state.players[0].bot = false;
+  rollDice();
+  const first = JSON.stringify(state.gamblerChoices);
+  if (!first) throw new Error('博徒: 出目が出ない');
+  render();
+  if (!$('#rollBtn').disabled) throw new Error('★博徒: 選択中なのに「ダイスを振る」ボタンが押せてしまう');
+  rollDice(); // 連打を模擬
+  rollDice();
+  if (JSON.stringify(state.gamblerChoices) !== first) throw new Error('★博徒: 連打で選択肢が上書きされた（無限リロールのバグ再発）');
+  chooseGamblerDie(0);
+  if (!state.rolled) throw new Error('博徒: 選択後に確定しない');
+  state.players[0].hero = null; state.players[0].bot = true; state.rerollUsed = false; gameConfig.expansionHeroes = false;
+})()`);
+console.log('gambler no-spam-reroll test: PASS');

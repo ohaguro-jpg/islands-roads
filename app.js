@@ -783,7 +783,7 @@ function render() {
     moveShipBtn.textContent = inMove ? '✕ 船の移動をやめる' : '⛵ 船を移動（1ターン1回）';
   }
   const setupSelectionReady = state.setupPart === 'settlement' ? state.pendingSetupVertex != null : state.pendingSetupEdge != null;
-  $('#rollBtn').disabled = setup ? botTurnNow || !setupSelectionReady : state.rolled || botTurnNow;
+  $('#rollBtn').disabled = setup ? botTurnNow || !setupSelectionReady : state.rolled || botTurnNow || !!state.gamblerChoices;
   $('#endTurnBtn').disabled = setup || state.resolvingSeven || (!botTurnNow && !state.rolled);
   $('#endTurnBtn').innerHTML = !setup && botTurnNow ? 'NPCを進める <b>→</b>' : 'ターン終了 <b>→</b>';
   $('#npcControlBtn').hidden = !botTurnNow || state.gameOver;
@@ -874,12 +874,15 @@ function myHarborSummary(player = state.turn) {
 
 function maritimeRate(player, resource) {
   let rate = 4;
+  let ownsHarbor = false;
   Object.entries(state.harbors).forEach(([vertex, type]) => {
     if (state.buildings[vertex]?.player !== player) return;
+    ownsHarbor = true;
     if (type === resource) rate = 2;
     else if (type == null) rate = Math.min(rate, 3);
   });
-  if (state.players[player]?.hero === 'harbormaster') rate = Math.min(rate, 2); // 港の主: 全資源 2:1
+  // 港の主: 港を1つでも持っていれば、その恩恵が全資源に及ぶ（港を持たないうちは無効）
+  if (ownsHarbor && state.players[player]?.hero === 'harbormaster') rate = Math.min(rate, 2);
   return rate;
 }
 
@@ -1356,6 +1359,7 @@ const rollDie = () => 1 + Math.floor(Math.random() * 6);
 
 function rollDice() {
   if (state.phase !== 'play' || state.rolled || currentIsBot()) return;
+  if (state.gamblerChoices) return; // 出目を選ぶまでは「ダイスを振る」を再度押しても無視（連打で選択肢が上書きされるのを防ぐ）
   state.recentBotMoves = [];
   // 強運の博徒: ダイスを3回ふって、盤面を見ながら好きな出目を1つ選べる（盤面を覆わない下部バーで選択）。
   if (state.players[state.turn].hero === 'gambler' && !state.rerollUsed) {
