@@ -544,3 +544,32 @@ run(`(() => {
   state.players[0].hero = null; state.players[0].bot = true; state.rerollUsed = false; gameConfig.expansionHeroes = false;
 })()`);
 console.log('gambler no-spam-reroll test: PASS');
+
+// NPCの経済効率改善: 銀行交換は「一番要らない資源」を手放す。
+// 通常の4:1では譲渡候補(4枚以上)は必ずどのレシピにも足りているため差が出ない。
+// 港で交換レートが下がった時（例: 鉱石2:1で鉱石2枚は持っているが都市の3枚には足りない）
+// にこそ「まだ要る資源」を誤って手放さないことを検証する。
+run(`(() => {
+  const savedRes = state.players[0].resources, savedBank = state.bank, savedHarbors = state.harbors, savedBuildings = state.buildings, savedDiff = gameConfig.difficulty;
+  gameConfig.difficulty = 'master';
+  state.harbors = {};
+  const v = vertices.findIndex((_, i) => canPlaceInitialSettlement(i));
+  state.harbors[v] = 'ore'; // 鉱石2:1港
+  state.buildings[v] = { player: 0, type: 'settlement' };
+  // 鉱石は港のおかげで2枚あれば譲渡候補になれるが、都市(鉱石3)にはまだ2枚足りない＝本当は要る。
+  // 木材はどのレシピも1枚しか使わないので4枚あれば正真正銘の余り。
+  state.players[0].resources = { wood: 4, brick: 0, wheat: 0, sheep: 0, ore: 2 };
+  state.bank = { wood: 10, brick: 10, wheat: 10, sheep: 10, ore: 10 };
+  tryBankTrade(0, 'brick');
+  if (state.players[0].resources.ore < 2) throw new Error('★銀行交換: 都市にまだ足りない鉱石を手放してしまった wood=' + state.players[0].resources.wood + ' ore=' + state.players[0].resources.ore);
+  if (state.players[0].resources.wood >= 4) throw new Error('銀行交換: 正真正銘余っているwoodを手放していない');
+
+  // botVertexValue: smart(master)は資源多様性/港を評価するbotSetupScoreを使う（値がある・NaNでない）
+  const v2 = vertices.findIndex((_, i) => i !== v && vertices[i].tiles.length > 0);
+  if (typeof botVertexValue(v2, 0) !== 'number' || Number.isNaN(botVertexValue(v2, 0))) throw new Error('botVertexValue(smart)が不正な値を返す');
+  gameConfig.difficulty = 'easy';
+  if (typeof botVertexValue(v2, 0) !== 'number' || Number.isNaN(botVertexValue(v2, 0))) throw new Error('botVertexValue(非smart)が不正な値を返す');
+
+  state.players[0].resources = savedRes; state.bank = savedBank; state.harbors = savedHarbors; state.buildings = savedBuildings; gameConfig.difficulty = savedDiff;
+})()`);
+console.log('bot resource/placement efficiency test: PASS');

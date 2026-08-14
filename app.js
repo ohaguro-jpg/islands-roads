@@ -2009,7 +2009,11 @@ function showNpcProposalDialog(player, giveRes, wantRes, onDone) {
 
 function tryBankTrade(player, wanted) {
   if (state.bank[wanted] < 1) return false;
-  const donor = Object.keys(RESOURCES).find(resource => resource !== wanted && state.players[player].resources[resource] >= maritimeRate(player, resource));
+  // 渡す資源は「一番要らない（次の建設で使う予定が薄い）」ものを選ぶ。固定順だと、
+  // 次に使いたい資源を気づかず手放してしまうことがあった。
+  const donor = Object.keys(RESOURCES)
+    .filter(resource => resource !== wanted && state.players[player].resources[resource] >= maritimeRate(player, resource))
+    .sort((a, b) => npcResourceNeed(player, a) - npcResourceNeed(player, b))[0];
   if (!donor) return false;
   state.players[player].resources[donor] -= maritimeRate(player, donor);
   state.bank[donor] += maritimeRate(player, donor);
@@ -2042,8 +2046,9 @@ function roadValue(edgeIndex, player) {
 }
 
 // Seafarers: a settlement spot is worth more on an undiscovered island (bonus VP)
-function botVertexValue(vertex) {
-  let score = setupVertexScore(vertex);
+function botVertexValue(vertex, player) {
+  // smart系は開幕と同じ評価（資源多様性・港・数字の分散）を使う。それ以外は確率だけの雑な評価のまま。
+  let score = botRules().smart ? botSetupScore(vertex, player) : setupVertexScore(vertex);
   if (state.expansion === 'seafarers') {
     vertices[vertex].tiles.forEach(tileIndex => {
       const island = tiles[tileIndex]?.island;
@@ -2108,7 +2113,7 @@ function runBotActions(player) {
     }
     const settlements = vertices.map((_, i) => i).filter(vertex => canSettle(vertex, player));
     if (settlements.length && hasPieceAvailable(player, 'settlement') && prepareCost(player, 'settlement')) {
-      const vertex = settlements.sort((a, b) => botVertexValue(b) - botVertexValue(a))[0];
+      const vertex = settlements.sort((a, b) => botVertexValue(b, player) - botVertexValue(a, player))[0];
       pay('settlement', player);
       state.buildings[vertex] = { player, type: 'settlement' };
       state.players[player].vp++;
@@ -2325,9 +2330,33 @@ function showMonopolyDialog() {
   });
 }
 
+// どのカードを使うと今一番得か採点する（smart系の判断力向上。手札の並び順で決め打ちしない）。
+function devCardPriorityScore(player, card) {
+  if (card === 'knight') {
+    const reaches3 = state.players[player].playedKnights + 1 >= 3;
+    const contested = state.largestArmyOwner !== player && reaches3; // 最大騎士力+2点を今取れる/守れる
+    return contested ? 9 : 5;
+  }
+  if (card === 'roadBuilding') {
+    const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && roadConnected(i, player));
+    return roads.length >= 2 ? 8 : roads.length === 1 ? 4 : 0;
+  }
+  if (card === 'monopoly') {
+    const best = Math.max(...Object.keys(RESOURCES).map(r => state.players.reduce((sum, p, i) => i === player ? sum : sum + p.resources[r], 0)));
+    return best >= 3 ? 7 : 2;
+  }
+  if (card === 'plenty') {
+    const missing = Object.keys(RESOURCES).filter(r => npcResourceNeed(player, r) > 0).length;
+    return missing >= 2 ? 6 : 3;
+  }
+  return 1;
+}
 function playBotDevelopment(player) {
-  const card = state.players[player].dev.find(item => item !== 'victory');
-  if (card && Math.random() < botRules().devChance) playDevelopment(player, card);
+  const playable = state.players[player].dev.filter(item => item !== 'victory');
+  if (!playable.length) return;
+  const rules = botRules();
+  const card = rules.smart ? playable.sort((a, b) => devCardPriorityScore(player, b) - devCardPriorityScore(player, a))[0] : playable[0];
+  if (Math.random() < rules.devChance) playDevelopment(player, card);
 }
 
 function longestRoadLength(player) {
