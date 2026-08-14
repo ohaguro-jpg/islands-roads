@@ -1659,9 +1659,16 @@ function showGoldPickDialog(player, remaining, picked, onDone) {
 
 function showDiscardDialog(who, required) {
   const owner = state.players[who];
+  const handTotal = Object.values(owner.resources).reduce((sum, amount) => sum + amount, 0);
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>${owner.name}：手札を${required}枚捨てる</h2><p>捨てる資源の枚数を選んでください。</p><div class="discard-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<label>${data.icon} ${data.name}<input id="discard-${resource}" type="number" min="0" max="${owner.resources[resource]}" value="0"></label>`).join('')}</div><button class="confirm-discard" id="confirmDiscardBtn">決定する</button>`;
+  $('#modalContent').innerHTML = `<h2>${owner.name}：手札を${required}枚捨てる</h2><p>今の手札は<b>${handTotal}枚</b>。捨てる資源の枚数を選んでください。</p><div class="discard-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<label>${data.icon} ${data.name}<small class="discard-have">${owner.resources[resource]}枚持ち</small><input id="discard-${resource}" type="number" min="0" max="${owner.resources[resource]}" value="0"></label>`).join('')}</div><p class="discard-progress" id="discardProgress">選択中: 0 / ${required}枚</p><button class="confirm-discard" id="confirmDiscardBtn">決定する</button>`;
   $('#modal').showModal();
+  const updateProgress = () => {
+    const total = Object.keys(RESOURCES).reduce((sum, resource) => sum + Math.max(0, Number($(`#discard-${resource}`).value) || 0), 0);
+    $('#discardProgress').textContent = `選択中: ${total} / ${required}枚`;
+    $('#discardProgress').classList.toggle('discard-progress-ok', total === required);
+  };
+  Object.keys(RESOURCES).forEach(resource => { $(`#discard-${resource}`).oninput = updateProgress; });
   $('#confirmDiscardBtn').onclick = () => {
     const amounts = Object.fromEntries(Object.keys(RESOURCES).map(resource => [resource, Math.max(0, Number($(`#discard-${resource}`).value) || 0)]));
     const total = Object.values(amounts).reduce((sum, amount) => sum + amount, 0);
