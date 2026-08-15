@@ -17,6 +17,9 @@
       font-family: 'DM Sans', sans-serif;
       padding: 24px;
     }
+    .lang-switch { position: fixed; top: 14px; right: 14px; z-index: 10; display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: #fcfaf4; border: 1px solid #c8bfa8; box-shadow: 0 6px 18px #17372f22; }
+    .lang-btn { border: 0; border-radius: 7px; padding: 6px 10px; background: transparent; color: #74817c; font-size: 11px; font-weight: 800; cursor: pointer; font-family: inherit; }
+    .lang-btn.active { background: #17372f; color: #fff; }
     .card {
       width: min(480px, 100%);
       padding: 40px 32px 36px;
@@ -96,26 +99,50 @@
   </style>
 </head>
 <body>
+  <div class="lang-switch" id="langSwitch">
+    <button class="lang-btn" id="langJa" data-lang="ja">日本語</button>
+    <button class="lang-btn" id="langEn" data-lang="en">English</button>
+  </div>
   <div class="card">
     <span class="kicker">ISLANDS & ROADS</span>
-    <h1>島へ出発しよう</h1>
-    <p class="subtitle">どちらで遊びますか？</p>
+    <h1 data-ja="島へ出発しよう" data-en="Set Sail for the Isle">島へ出発しよう</h1>
+    <p class="subtitle" data-ja="どちらで遊びますか？" data-en="How do you want to play?">どちらで遊びますか？</p>
     <div class="choices">
       <a class="choice-btn btn-offline" href="offline.html">
         <span class="choice-icon">🏝️</span>
         <span class="choice-text">
-          <b>オフラインで遊ぶ</b>
-          <small>同じ端末で1〜4人対戦・NPC戦</small>
+          <b data-ja="オフラインで遊ぶ" data-en="Play Offline">オフラインで遊ぶ</b>
+          <small data-ja="同じ端末で1〜4人対戦・NPC戦" data-en="1–4 players on this device, vs. NPCs">同じ端末で1〜4人対戦・NPC戦</small>
         </span>
       </a>
       <a class="choice-btn btn-online" href="https://islands-roads.onrender.com/online.html">
         <span class="choice-icon">🌐</span>
         <span class="choice-text">
-          <b>オンラインで遊ぶ</b>
-          <small>友達とリアルタイム対戦</small>
+          <b data-ja="オンラインで遊ぶ" data-en="Play Online">オンラインで遊ぶ</b>
+          <small data-ja="友達とリアルタイム対戦" data-en="Real-time play with friends">友達とリアルタイム対戦</small>
         </span>
       </a>
     </div>
   </div>
+  <script>
+    (function () {
+      var LANG = (function () { try { return localStorage.getItem('lang') || 'ja'; } catch (e) { return 'ja'; } })();
+      function apply(lang) {
+        LANG = lang === 'en' ? 'en' : 'ja';
+        try { localStorage.setItem('lang', LANG); } catch (e) {}
+        document.documentElement.lang = LANG;
+        document.querySelectorAll('[data-en]').forEach(function (el) {
+          el.textContent = LANG === 'en' ? el.dataset.en : el.dataset.ja;
+        });
+        document.querySelectorAll('.lang-btn').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.lang === LANG);
+        });
+      }
+      document.querySelectorAll('.lang-btn').forEach(function (btn) {
+        btn.onclick = function () { apply(btn.dataset.lang); };
+      });
+      apply(LANG);
+    })();
+  </script>
 </body>
 </html>

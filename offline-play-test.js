@@ -573,3 +573,18 @@ run(`(() => {
   state.players[0].resources = savedRes; state.bank = savedBank; state.harbors = savedHarbors; state.buildings = savedBuildings; gameConfig.difficulty = savedDiff;
 })()`);
 console.log('bot resource/placement efficiency test: PASS');
+
+// i18n: 英語表示で「You」が名前の時に「You's hand」のような崩れた文法にならないこと。
+run(`(() => {
+  const savedLang = LANG;
+  LANG = 'en';
+  const you = t('you');
+  if (handOfLabel(you) !== 'Your hand') throw new Error('★handOfLabel: got ' + handOfLabel(you));
+  if (winTitleText(you) !== 'You win!') throw new Error('★winTitleText: got ' + winTitleText(you));
+  if (diceOfLabel(you) !== 'Your dice') throw new Error('★diceOfLabel: got ' + diceOfLabel(you));
+  if (yourTurnLabel(you) !== 'It’s your turn') throw new Error('★yourTurnLabel: got ' + yourTurnLabel(you));
+  // 固有名詞（NPC名など）では通常の所有格のまま
+  if (handOfLabel('Minato') !== t('handOf', { name: 'Minato' })) throw new Error('固有名詞でhandOfLabelの通常文言が壊れた');
+  LANG = savedLang;
+})()`);
+console.log('i18n "You" grammar test: PASS');

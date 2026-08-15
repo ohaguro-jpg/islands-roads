@@ -1,9 +1,14 @@
+// ===== i18n =====
+// 言語は localStorage に永続化。RESOURCES/HEROES は getter で言語を見るので、
+// 既存の .name / .desc 参照はコードを一切変えずに両言語に対応する。
+let LANG = (typeof localStorage !== 'undefined' && localStorage.getItem('lang')) || 'ja';
+const RES_NAMES_EN = { wood: 'Wood', brick: 'Brick', wheat: 'Wheat', sheep: 'Sheep', ore: 'Ore' };
 const RESOURCES = {
-  wood: { name: '木材', icon: '🌲' },
-  brick: { name: 'レンガ', icon: '🧱' },
-  wheat: { name: '小麦', icon: '🌾' },
-  sheep: { name: '羊毛', icon: '🐑' },
-  ore: { name: '鉱石', icon: '⛏' }
+  wood:  { get name() { return LANG === 'en' ? RES_NAMES_EN.wood : '木材'; }, icon: '🌲' },
+  brick: { get name() { return LANG === 'en' ? RES_NAMES_EN.brick : 'レンガ'; }, icon: '🧱' },
+  wheat: { get name() { return LANG === 'en' ? RES_NAMES_EN.wheat : '小麦'; }, icon: '🌾' },
+  sheep: { get name() { return LANG === 'en' ? RES_NAMES_EN.sheep : '羊毛'; }, icon: '🐑' },
+  ore:   { get name() { return LANG === 'en' ? RES_NAMES_EN.ore : '鉱石'; }, icon: '⛏' }
 };
 const TILE_TYPES = [...Array(4).fill('forest'), ...Array(3).fill('hills'), ...Array(4).fill('pasture'), ...Array(4).fill('fields'), ...Array(3).fill('mountains'), 'desert'];
 const DEFAULT_TYPES = ['mountains', 'pasture', 'forest', 'fields', 'hills', 'pasture', 'mountains', 'forest', 'fields', 'desert', 'fields', 'forest', 'mountains', 'forest', 'pasture', 'hills', 'fields', 'pasture', 'hills'];
@@ -13,6 +18,8 @@ const NUMBERS = [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11];
 const COLORS = ['#c95642', '#3d7181', '#d9a838', '#577b59'];
 const NAMES = ['あなた', 'ミナト', 'アオイ', 'ハル'];
 const NPC_NAMES = ['ミナト', 'アオイ', 'ハル', 'カイ'];
+const NPC_NAMES_EN = ['Minato', 'Aoi', 'Haru', 'Kai'];
+function npcName(i) { return LANG === 'en' ? NPC_NAMES_EN[i] : NPC_NAMES[i]; }
 const COSTS = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, wheat: 1, sheep: 1 }, city: { wheat: 2, ore: 3 }, development: { wheat: 1, sheep: 1, ore: 1 }, ship: { wood: 1, sheep: 1 } };
 const PIECE_LIMITS = { road: 15, settlement: 5, city: 4, ship: 15 };
 // Selectable board sizes. `n` is the axial hexagon radius; `trimCorners` drops the 6 corner
@@ -62,19 +69,557 @@ function harborTypeList(count) {
   return shuffle(list);
 }
 const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
-// Hero Pack (Claude Original) — each player receives one passive hero ability
+// Hero Pack (yuji Original) — each player receives one passive hero ability
+const HEROES_EN = {
+  general:      { name: 'Veteran General',    desc: 'No discard on a 7 with 15 cards or fewer (half discarded at 16+)' },
+  architect:    { name: 'Master Architect',   desc: 'Roads cost only 1 brick (no wood needed)' },
+  sage:         { name: 'Ancient Sage',       desc: 'Draw 2 development cards when buying and keep your favorite' },
+  guardian:     { name: 'Unbreakable Guardian', desc: 'Never loses resources to the robber; production continues even with the robber on your tile' },
+  gambler:      { name: 'Lucky Gambler',      desc: 'On your turn, roll the dice 3 times and pick your favorite while watching the board' },
+  taxman:       { name: 'Greedy Taxman',      desc: 'Steals 2 cards when robbing with a 7' },
+  harbormaster: { name: 'Harbor Master',      desc: 'Bank/port trades are 2:1 for every resource' }
+};
 const HEROES = [
-  { id: 'general',     icon: '🗡', name: '歴戦の将軍',   desc: '手札が 15 枚以下なら 7 が出ても捨て不要（16 枚以上で半分捨て）' },
-  { id: 'architect',   icon: '🏗', name: '天才建築家',   desc: '街道の建設コストがレンガ 1 枚のみ（木材不要）' },
-  { id: 'sage',        icon: '🔮', name: '古の賢者',      desc: '発展カード購入時に 2 枚引いて好きな 1 枚を選べる' },
-  { id: 'guardian',    icon: '🛡', name: '不屈の守人',   desc: '盗賊で資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない' },
-  { id: 'gambler',     icon: '🎲', name: '強運の博徒',   desc: '自分の手番、ダイスを 3 回ふって盤面を見ながら好きな 1 つを選べる' },
-  { id: 'taxman',      icon: '💰', name: '強欲の徴税官', desc: '7 を出して盗む時、2 枚奪える' },
-  { id: 'harbormaster', icon: '🌊', name: '港の主',      desc: '銀行・港との交換が全資源 2:1' },
+  { id: 'general',     icon: '🗡', get name() { return LANG === 'en' ? HEROES_EN.general.name : '歴戦の将軍'; },     get desc() { return LANG === 'en' ? HEROES_EN.general.desc : '手札が 15 枚以下なら 7 が出ても捨て不要（16 枚以上で半分捨て）'; } },
+  { id: 'architect',   icon: '🏗', get name() { return LANG === 'en' ? HEROES_EN.architect.name : '天才建築家'; },   get desc() { return LANG === 'en' ? HEROES_EN.architect.desc : '街道の建設コストがレンガ 1 枚のみ（木材不要）'; } },
+  { id: 'sage',        icon: '🔮', get name() { return LANG === 'en' ? HEROES_EN.sage.name : '古の賢者'; },          get desc() { return LANG === 'en' ? HEROES_EN.sage.desc : '発展カード購入時に 2 枚引いて好きな 1 枚を選べる'; } },
+  { id: 'guardian',    icon: '🛡', get name() { return LANG === 'en' ? HEROES_EN.guardian.name : '不屈の守人'; },    get desc() { return LANG === 'en' ? HEROES_EN.guardian.desc : '盗賊で資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない'; } },
+  { id: 'gambler',     icon: '🎲', get name() { return LANG === 'en' ? HEROES_EN.gambler.name : '強運の博徒'; },     get desc() { return LANG === 'en' ? HEROES_EN.gambler.desc : '自分の手番、ダイスを 3 回ふって盤面を見ながら好きな 1 つを選べる'; } },
+  { id: 'taxman',      icon: '💰', get name() { return LANG === 'en' ? HEROES_EN.taxman.name : '強欲の徴税官'; },    get desc() { return LANG === 'en' ? HEROES_EN.taxman.desc : '7 を出して盗む時、2 枚奪える'; } },
+  { id: 'harbormaster', icon: '🌊', get name() { return LANG === 'en' ? HEROES_EN.harbormaster.name : '港の主'; },   get desc() { return LANG === 'en' ? HEROES_EN.harbormaster.desc : '銀行・港との交換が全資源 2:1'; } },
 ];
 // Hero is only set when the expansion is on; helpers used by robber/steal logic.
 function robbable(player) { return state.players[player]?.hero !== 'guardian'; }   // guardian can't be stolen from
 function stealCount(player) { return state.players[player]?.hero === 'taxman' ? 2 : 1; } // taxman robs 2
+
+// Translation dictionary for toasts / dialogs / other dynamic (non-HTML-authored) strings.
+// Static HTML text lives in the .html files as data-ja/data-en (see applyI18n below).
+const T = {
+  ja: {
+    cardCancelled: 'カードの使用を取り消しました',
+    bgmName: 'BGM：{name}',
+    placingFrom: '{name}から配置します',
+    devCardUsed: '{label}カードを使いました',
+    shipBuilt: '船を建設しました',
+    shipMoveLimit: '船の移動は1ターンに1回までです',
+    noMovableShips: '動かせる船がありません（航路の先端の船だけ動かせます）',
+    pickShipToMove: '動かす船（航路の先端）を選んでください',
+    pickShipDestination: '移動先の海路を選んでください',
+    shipMoved: '船を移動しました',
+    islandDiscovered: '✨ {name}が新しい島を発見！ +{vp}VP',
+    setupSpotSelected: '選んだ場所を自分の色で表示しました。下の「ここに決定」を押してください',
+    settlementBuilt: '開拓地を建設しました',
+    cityBuilt: '都市へ発展しました',
+    setupRoadSelected: '街道を選びました。下の「ここに決定」を押してください',
+    roadBuiltFreeRemaining: '街道を建設しました。あと{n}本置けます',
+    roadBuildingDone: '街道建設カードの街道を置き終えました',
+    roadBuilt: '街道を建設しました',
+    setupComplete: '初期配置完了！',
+    botPlacedSetup: '{name}が開拓地と街道を配置',
+    botSetupDone: '{name}の初期配置を完了しました',
+    pickWhiteDotFirst: '先に盤面の白い丸を選んでください',
+    settlementConfirmedPickRoad: '開拓地を確定しました。次につながる街道を選んでください',
+    pickWhiteRoadFirst: '先に白い街道を選んでください',
+    rolledGained: '{sum}！ 資源を {gained} 枚獲得',
+    rolledNoGain: '{sum}！ 島から資源が産出しました',
+    sevenBotMovedRobber: '7！ {name}が盗賊を動かしました',
+    pickSeaTileForPirate: '青い海タイルを選んで海賊を動かしてください',
+    confirmSeaTile: 'この海域でよければ「確定」を押してください',
+    pirateMovedNoVictim: '海賊を移動しました（奪える相手はいません）',
+    discardPickExact: '合計{n}枚を選んでください',
+    pickGlowingTile: '黄色く光る土地を選んで盗賊を動かしてください',
+    confirmTile: 'この土地でよければ「確定」を押してください',
+    robberMovedNoVictim: '盗賊を移動しました（奪える相手はいません）',
+    stolenFrom: '{name}から{n}枚獲得しました',
+    robberMoved: '盗賊を移動しました',
+    recovered: '状態を復旧しました。まだ進まない場合はもう一度押すか「新しいゲーム」を試してください',
+    barbNoCities: '🏴 蛮族が来たが、都市がないので被害なし！',
+    barbRepelledReward: '⚔ 蛮族撃退！{name}が発展カードを獲得！',
+    barbRepelled: '⚔ 蛮族撃退！よく守りました！',
+    barbDamage: '🏴 蛮族の来襲！騎士なきプレイヤーの都市が破壊されました',
+    barbNoDamage: '🏴 蛮族の来襲！被害なし',
+    botRecovered: '{name}の処理を復旧しました',
+    botEndedActions: '{name}は行動を終了しました',
+    tradedWithNpc: '{name}と交換しました',
+    rejectedNpcOffer: '{name}の提案を断りました',
+    botBuilt: '{name}：{items}を建設',
+    botNoAction: '{name}はターンを終了',
+    sageCardChosen: '{label}カードを選びました',
+    freeRoadsPrompt: '無料で街道を2本置けます。盤上の黄色い街道を選んでください',
+    pickExactlyTwo: '合計2枚を選んでください',
+    bankOutOfStock: '銀行の在庫が足りません',
+    plentyReceived: '発見カードで資源を受け取りました',
+    monopolyCollected: '独占！ {res}を{n}枚集めました',
+    noTradeTarget: '交換できる相手がいません',
+    tradeSucceeded: '{name}と交換が成立しました！',
+    cantBuyDev: '発展カードを購入できません',
+    devBought: '発展カードを1枚購入しました',
+    pickYellowRoad: '盤上の黄色い街道を選択',
+    pickYellowSpot: '盤上の黄色い地点を選択',
+    noPlayableDev: '使える発展カードがありません',
+    rollBeforeTrade: 'ダイスを振ったあとに交換できます',
+    pickDifferentResource: '違う資源を選んでください',
+    needNMore: '{res}が{rate}枚必要です',
+    bankOutOfRes: '銀行に{res}がありません',
+    bankTraded: '銀行と交換しました',
+    firstSettlementPrompt: '最初の開拓地を置いてください',
+    secondSettlementPrompt: '2個目の開拓地を置いてください',
+    yourTurn: '{name}のターンです',
+    noHarborsOwned: '保有する港はありません（すべて<b>4:1</b>）',
+    harborsOwnedPrefix: '保有する港：',
+    desertLabel: '砂漠',
+    expectedValue: '{parts} · 期待値{score}{harbor}',
+    handOf: '{name}の手札',
+    pickResourcesEach: '渡す資源ともらう資源をそれぞれ選んでください',
+    sameResourceTrade: '同じ資源を渡して受け取ることはできません',
+    resourceShort: '{res}が足りません',
+    itemCity: '都市',
+    itemSettlement: '開拓地',
+    itemRoad: '街道',
+    itemShip: '船',
+    itemDevCard: '発展カード',
+    acceptTrade: '交換に応じる',
+    actionLabel: 'アクション',
+    advanceNpc: 'NPCを進める',
+    advanceNpcNow: 'NPCを今すぐ進める →',
+    advanceNpcSetup: 'NPCの初期配置を進める →',
+    allHuman: '人間4人で対戦します（NPCなし）',
+    anyResource: 'どの資源でも',
+    automatic: '自動',
+    backToYourTurn: '手番に戻ります。端末を受け取ってください。',
+    breakdownCities: '都市×{n}',
+    breakdownIsland: '新島発見+{n}',
+    breakdownLargestArmy: '最大騎士力+2',
+    breakdownLongestRoad: '最長交易路+2',
+    breakdownSettlements: '開拓地×{n}',
+    breakdownVpCards: '勝利点カード×{n}',
+    cancelShipMove: '✕ 船の移動をやめる',
+    countCards: '{n}枚',
+    countHave: '{n}枚持ち',
+    decide: '決定する',
+    declineTrade: '断る',
+    declined: '拒否',
+    decrease: '減らす',
+    diceOf: '{name} のダイス',
+    discardBody: '今の手札は<b>{n}枚</b>。捨てる資源の枚数を選んでください。',
+    discardProgress: '選択中: {total} / {n}枚',
+    discardTitle: '{name}：手札を{n}枚捨てる',
+    doTrade: '交換する',
+    endTurn: 'ターン終了',
+    expansionIntroSub: '選んだ拡張のルールです。「遊び方」ボタンからいつでも見直せます。',
+    expansionIntroTitle: '拡張ルールの遊び方',
+    fromNextTurn: '次ターンから',
+    gamblerPickLabel: '出た目から1つ選ぶ',
+    getLabel: 'もらう',
+    giveLabel: '渡す',
+    goldPickBody: 'あと <b>{n}</b> 枚選んでください',
+    goldPickTitle: '{name}：金鉱から資源を受け取る',
+    handToThem: '本人に渡す',
+    harborLabel: '港',
+    howToPlay: '遊び方',
+    humanPlayerConfirm: '人間プレイヤー · 本人に確認します',
+    humanProposalBody: '<b>{name}</b> があなたに {give} を渡すかわりに、あなたの {get} をほしがっています。',
+    humanProposalIncoming: '{name} さんから交換の提案があります',
+    humanProposalTitle: '{name}さんへの提案',
+    humanTag: '人間',
+    humanTradeDeclined: '{name}さんに断られました',
+    humanTradeSucceeded: '{name}さんと交換が成立しました！',
+    increase: '増やす',
+    isThisYou: '{name} さんですか？',
+    largestArmyBadge: '最大騎士力',
+    largestArmyShort: '最大騎士',
+    longestRoadBadge: '最長交易路',
+    longestRoadShort: '最長',
+    minPointsLabel: '最低点',
+    minVp: '最低 {n} VP',
+    minVpShort: '最低 {n}',
+    monopolyDialogBody: '選んだ資源を全プレイヤーから集めます。',
+    monopolyDialogTitle: '独占：資源を1種類選ぶ',
+    moveShipBtnLabel: '⛵ 船を移動（1ターン1回）',
+    mustDiscardN: '手札を {n} 枚捨てます',
+    neverMind: 'やっぱりやめる',
+    noDevCardsYet: '発展カードはまだありません',
+    noOneAccepted: '承認してくれる相手がいませんでした。',
+    none: 'なし',
+    npcJoining: 'NPC ×{n} が参加します（合計4人）',
+    npcProposalBody: '<b>{name}</b> が {give} を渡すかわりに、あなたの {want} をほしがっています。',
+    npcProposalTitle: '{name}からの交換提案',
+    npcsTurn: 'NPCの手番です',
+    okCanTrade: 'OK！交換できます',
+    pickRoadSpot: '街道の場所を選ぶ',
+    pickSettlementSpot: '開拓地の場所を選ぶ',
+    pirateSea: '海賊（海）',
+    placingNth: '{n}個目を配置',
+    playAgain: 'もう一度遊ぶ',
+    playerLabel: 'プレイヤー',
+    playerN: 'プレイヤー{n}',
+    pleaseWait: '少し待ってください',
+    plentyDialogBody: '銀行から好きな資源を合計2枚受け取れます。',
+    plentyDialogTitle: '発見：資源を2枚選ぶ',
+    proposalReplyBody: 'あなたが渡す {give} → もらう {get}',
+    proposalReplyTitle: '提案への返事',
+    rankLabel: '順位',
+    reasonFits: '建設計画に合う',
+    reasonInvalid: '条件が不正',
+    reasonMismatch: '条件が見合わない',
+    reasonShort: '{res}が足りない',
+    reasonTooMuch: '渡す枚数が多すぎる',
+    receive: '受け取る',
+    resourceLabel: '資源',
+    resourceShort2: '資源が足りません',
+    resultLine: '開拓地{settlements}・都市{cities}・道{roads}・騎士{knights}',
+    robberLand: '盗賊（陸）',
+    rollDiceLabel: 'ダイスを振る',
+    rulesBarbariansJudge: '<b>⚔ 防衛の判定：</b>上陸時、<b>全員が使った騎士カードの合計</b>と、<b>盤上の都市の合計数</b>を比べます。',
+    rulesBarbariansLose: '<b>❌ 騎士 ＜ 都市 → 防衛失敗：</b>そのラウンドで<b>騎士を1枚も使っていないプレイヤー</b>の都市が1つ開拓地に格下げされます（−1点）。',
+    rulesBarbariansNote: '※ ポイント：騎士カードは盗賊対策だけでなく<b>都市を守る盾</b>にもなります。都市を増やすほど蛮族に狙われやすいので、騎士とのバランスが大切です。都市が1つも無いときは被害ゼロ。',
+    rulesBarbariansTiming: '<b>⏳ 侵攻のタイミング：</b>手番が進むごとに蛮族船が前進し、<b>{n}ターンごと</b>に上陸して全プレイヤーの<b>都市</b>を襲います。サイドバーの蛮族トラックで残りターンを確認できます。',
+    rulesBarbariansTitle: '拡張：蛮族の来襲（シティ＆ナイト風 簡易版）',
+    rulesBarbariansWin: '<b>✅ 騎士 ≧ 都市 → 撃退成功：</b>勝利点が最も高いプレイヤーが<b>発展カードを1枚</b>もらえます。',
+    rulesBuildCost: '<b>🔨 建設コスト：</b>街道＝🌲🧱／開拓地＝🌲🧱🌾🐑／都市（開拓地を発展）＝🌾2 ⛏3／発展カード＝🌾🐑⛏。開拓地は最大5個・都市は最大4個・街道は最大15本まで。開拓地を都市にすると開拓地の枠が空きます。',
+    rulesDevIntro: '<b>🃏 発展カード：</b>引いたターンは使えず、<b>次の自分の手番から・1ターンに1枚だけ</b>使えます。',
+    rulesDevKnight: '・<b>騎士</b>＝盗賊を好きな土地へ動かして1枚奪う（置く前に確定ボタンで確認）',
+    rulesDevMonopoly: '・<b>独占</b>＝資源を1種類選び全員から集める',
+    rulesDevPlenty: '・<b>発見</b>＝銀行から好きな資源を2枚もらう',
+    rulesDevRoadBuilding: '・<b>街道建設</b>＝無料の街道を2本、自分で選んで置く',
+    rulesDevVictory: '・<b>勝利点</b>＝隠したまま自動で1点（自分だけ見える）<br>騎士を3枚以上使うと<b>最大騎士力＋2点</b>。',
+    rulesGoal: '<b>🎯 目的：</b>最初に<b>10勝利点</b>に到達したプレイヤーの勝ちです。開拓地は1点、都市は2点。さらに最長交易路・最大騎士力・勝利点カードでも点が入ります。',
+    rulesHarbors: '<b>⚓ 港と交換：</b>銀行とは通常4:1で交換。港に開拓地・都市があると<b>3:1</b>（どの資源でも）や<b>2:1</b>（指定資源）になります。盤上の港は点線でどのマスと繋がるか示され、保有中の港は銀行パネルに表示されます。手番中は他プレイヤーへ直接交換も提案できます。',
+    rulesHeroesIntro: 'ゲーム開始時、各プレイヤーに<b>固有の英雄</b>が1人ランダムで配られます。英雄の能力は<b>ゲーム中ずっと自動で発動</b>する常時効果です。プレイヤー名の横に英雄バッジが表示されます。',
+    rulesHeroesMine: 'あなたの英雄：<b>{icon} {name}</b><br>{desc}',
+    rulesHeroesNote: '※ 英雄能力は最初に配られた1つで固定。交換や変更はできません。',
+    rulesHeroesTitle: '拡張：英雄の伝説（yuji オリジナル）',
+    rulesLargestArmy: '',
+    rulesLongestRoad: '<b>🛣 最長交易路：</b>連続5本以上の街道{ships}を最も長く繋いだ人が<b>＋2点</b>。',
+    rulesLongestRoadShips: '・船',
+    rulesNpcSailing: '（船で新しい島も目指します）',
+    rulesNpcStrength: '<b>🤖 NPCの強さ：</b>開始画面で「やさしい／ふつう／強い」を選べます。強いほど街道を賢く伸ばし、発展カードを積極的に使います{sailing}。',
+    rulesProduction: '<b>🎲 資源の産出：</b>手番では必ず最初にダイスを振ります。出た目の数字を持つタイルに接する開拓地（1枚）・都市（2枚）の所有者が資源を得ます。<b>ダイスを振るまで建設・交換・発展カードは使えません。</b>',
+    rulesSeafarersGold: '<b>✨ 金鉱：</b>金鉱に接する開拓地・都市の所有者は、その数字が出ると<b>好きな資源</b>を選んで受け取れます（開拓地1枚・都市2枚）。',
+    rulesSeafarersIsland: '<b>🏝 新しい島の発見：</b>母島以外の島に<b>最初に開拓地</b>を置いた人は<b>＋{n}点</b>。船で海を渡ってたどり着きましょう。',
+    rulesSeafarersMoveShip: '<b>🚢 船の移動：</b>1ターンに1回、航路の<b>先端の船</b>を1隻だけ別の場所へ動かせます（そのターンに置いた船・移動済みの船は動かせません）。「⛵ 船を移動」ボタンから行います。',
+    rulesSeafarersPirate: '<b>🏴‍☠️ 海賊：</b>海では盗賊のかわりに<b>海賊</b>が動きます。7を出すか騎士を使うと、盗賊（陸）か海賊（海）のどちらを動かすか選べます。海賊のいる海域では船を建設できず、その海域に面した相手から資源を1枚奪えます。',
+    rulesSeafarersShip: '<b>⛵ 船：</b>コストは🌲＋🐑。海に面した辺に置けます。自分の<b>沿岸の開拓地・都市</b>か、つながっている<b>船の先端</b>から伸ばします。街道と船は開拓地・都市を経由してつながり、合わせて<b>最長交易路</b>になります。',
+    rulesSeafarersTitle: '拡張：航海者たち',
+    rulesSetup: '<b>🏝 初期配置：</b>全員が開拓地と街道を2組ずつ、往復順（あなた→他3人→他3人→あなた）に置きます。2個目の開拓地の周囲のタイルから初期資源を受け取ります。',
+    rulesSeven: '<b>🦹 7と盗賊：</b>7が出ると手札8枚以上の人は半分を捨てます。振った人は盗賊を動かし、その土地に接する相手から1枚奪います。盗賊のいる土地は資源を産出しません。',
+    rulesVpVisibility: '<b>🔒 勝利点の表示：</b>あなたの合計点だけが表示され、他プレイヤーの点数は伏せられます（ゲーム終了時に公開）。',
+    sageDialogBody: '引いた2枚のカードから1枚をキープ。もう1枚はデッキに戻ります。',
+    sageDialogTitle: '古の賢者：2枚から1枚を選ぶ',
+    selected: '選択済み',
+    setupPhaseLabel: '初期配置',
+    setupTextRoad: '白い線を選び、下の決定ボタンを押してください',
+    setupTextSettlement: '小さい白い丸を選び、下の決定ボタンを押してください',
+    setupTitlePlacing: '{name}が配置中…',
+    setupTitleRoad: '街道を置こう',
+    setupTitleSettlement: '開拓地を置こう',
+    sevenChoiceBody: 'どちらを移動しますか？',
+    sevenChoiceTitle: '7！ 盗賊か海賊を動かす',
+    statsLine: '手札{hand} · 開拓地{settlements} · 都市{cities} · 道{roads} · 発展{dev} · 騎士{knights}',
+    stealFromWhoBody: '盗賊を置いた土地に接するプレイヤーから1枚を奪えます。',
+    stealFromWhoTitle: '誰から1枚もらう？',
+    step1SelectOnBoard: '① 盤面から選択',
+    step2Confirm: '② ここに決定',
+    sumLabel: '合計 {n}',
+    totalLabel: '合計 {n}',
+    tradeHintModal: '交換したい相手の「交換する」または「本人に渡す」を押してください。',
+    turnsRemaining: 'あと {n} ターン',
+    use: '使う',
+    victoryPointsLabel: '勝利点',
+    winSub: '{n}勝利点を獲得し、島の開拓者になりました。',
+    winTitle: '{name} の勝利！',
+    you: 'あなた',
+    yourCurrentVpTitle: 'あなたの現在の勝利点（隠し勝利点カード込み）',
+    yourTurnCheckHand: 'あなたの番です。準備ができたら手札を見ましょう。',
+  },
+  en: {
+    cardCancelled: 'Card use cancelled',
+    bgmName: 'BGM: {name}',
+    placingFrom: '{name} is placing pieces',
+    devCardUsed: 'Used {label} card',
+    shipBuilt: 'Ship built',
+    shipMoveLimit: 'You can only move a ship once per turn',
+    noMovableShips: 'No movable ships (only ships at the end of a route can move)',
+    pickShipToMove: 'Choose a ship to move (must be at the end of a route)',
+    pickShipDestination: 'Choose a sea route to move it to',
+    shipMoved: 'Ship moved',
+    islandDiscovered: '✨ {name} discovered a new island! +{vp}VP',
+    setupSpotSelected: 'Spot marked in your color. Press "Confirm" below',
+    settlementBuilt: 'Settlement built',
+    cityBuilt: 'Upgraded to a city',
+    setupRoadSelected: 'Road selected. Press "Confirm" below',
+    roadBuiltFreeRemaining: 'Road built. {n} more to place',
+    roadBuildingDone: 'Finished placing the Road Building roads',
+    roadBuilt: 'Road built',
+    setupComplete: 'Setup complete!',
+    botPlacedSetup: '{name} placed a settlement and road',
+    botSetupDone: '{name} finished their setup',
+    pickWhiteDotFirst: 'Select a white dot on the board first',
+    settlementConfirmedPickRoad: 'Settlement confirmed. Choose the connecting road',
+    pickWhiteRoadFirst: 'Select a white road first',
+    rolledGained: '{sum}! Gained {gained} resource(s)',
+    rolledNoGain: '{sum}! The island produced no resources for you',
+    sevenBotMovedRobber: '7! {name} moved the robber',
+    pickSeaTileForPirate: 'Pick a blue sea tile to move the pirate',
+    confirmSeaTile: 'Press "Confirm" if this sea tile is fine',
+    pirateMovedNoVictim: 'Pirate moved (no one to rob)',
+    discardPickExact: 'Choose exactly {n} cards',
+    pickGlowingTile: 'Pick the glowing tile to move the robber',
+    confirmTile: 'Press "Confirm" if this tile is fine',
+    robberMovedNoVictim: 'Robber moved (no one to rob)',
+    stolenFrom: 'Took {n} card(s) from {name}',
+    robberMoved: 'Robber moved',
+    recovered: 'State recovered. Press again or try "New Game" if it is still stuck',
+    barbNoCities: '🏴 The barbarians arrived, but no cities means no damage!',
+    barbRepelledReward: '⚔ Barbarians repelled! {name} received a development card!',
+    barbRepelled: '⚔ Barbarians repelled! Well defended!',
+    barbDamage: '🏴 Barbarian raid! Cities of knight-less players were destroyed',
+    barbNoDamage: '🏴 Barbarian raid! No damage',
+    botRecovered: '{name}’s turn was recovered',
+    botEndedActions: '{name} finished their actions',
+    tradedWithNpc: 'Traded with {name}',
+    rejectedNpcOffer: '{name} declined the offer',
+    botBuilt: '{name}: built {items}',
+    botNoAction: '{name} ended their turn',
+    sageCardChosen: 'Chose the {label} card',
+    freeRoadsPrompt: 'You can place 2 free roads. Pick the yellow roads on the board',
+    pickExactlyTwo: 'Choose exactly 2 cards',
+    bankOutOfStock: 'The bank is out of stock',
+    plentyReceived: 'Received resources from Year of Plenty',
+    monopolyCollected: 'Monopoly! Collected {n} {res}',
+    noTradeTarget: 'No one to trade with',
+    tradeSucceeded: 'Trade with {name} succeeded!',
+    cantBuyDev: 'Cannot buy a development card',
+    devBought: 'Bought a development card',
+    pickYellowRoad: 'Select a yellow road on the board',
+    pickYellowSpot: 'Select a yellow spot on the board',
+    noPlayableDev: 'No development card available to play',
+    rollBeforeTrade: 'Roll the dice before trading',
+    pickDifferentResource: 'Pick a different resource',
+    needNMore: 'You need {rate} {res}',
+    bankOutOfRes: 'The bank has no {res}',
+    bankTraded: 'Traded with the bank',
+    firstSettlementPrompt: 'Place your first settlement',
+    secondSettlementPrompt: 'Place your second settlement',
+    yourTurn: 'It is {name}’s turn',
+    noHarborsOwned: 'No harbors owned (all <b>4:1</b>)',
+    harborsOwnedPrefix: 'Harbors owned: ',
+    desertLabel: 'Desert',
+    expectedValue: '{parts} · Expected {score}{harbor}',
+    handOf: '{name}’s hand',
+    pickResourcesEach: 'Choose what to give and what to receive',
+    sameResourceTrade: 'You cannot give and receive the same resource',
+    resourceShort: 'Not enough {res}',
+    itemCity: 'a city',
+    itemSettlement: 'a settlement',
+    itemRoad: 'a road',
+    itemShip: 'a ship',
+    itemDevCard: 'a dev card',
+    acceptTrade: 'Accept trade',
+    actionLabel: 'Action',
+    advanceNpc: 'Advance NPC',
+    advanceNpcNow: 'Advance NPC now →',
+    advanceNpcSetup: 'Advance NPC setup →',
+    allHuman: 'All 4 players are human (no NPCs)',
+    anyResource: 'any resource',
+    automatic: 'Auto',
+    backToYourTurn: 'Back to your turn. Take the device.',
+    breakdownCities: '{n} city(ies)',
+    breakdownIsland: 'New island +{n}',
+    breakdownLargestArmy: 'Largest Army +2',
+    breakdownLongestRoad: 'Longest Road +2',
+    breakdownSettlements: '{n} settlement(s)',
+    breakdownVpCards: '{n} victory point card(s)',
+    cancelShipMove: '✕ Cancel ship move',
+    countCards: '{n} cards',
+    countHave: 'have {n}',
+    decide: 'Confirm',
+    declineTrade: 'Decline',
+    declined: 'Declined',
+    decrease: 'Decrease',
+    diceOf: '{name}’s dice',
+    discardBody: 'Your hand has <b>{n} cards</b>. Choose how many of each resource to discard.',
+    discardProgress: 'Selected: {total} / {n}',
+    discardTitle: '{name}: discard {n} cards',
+    doTrade: 'Trade',
+    endTurn: 'End Turn',
+    expansionIntroSub: 'Rules for the expansions you picked. Revisit anytime with the "How to Play" button.',
+    expansionIntroTitle: 'Expansion Rules',
+    fromNextTurn: 'from next turn',
+    gamblerPickLabel: 'Pick one of the rolls',
+    getLabel: 'Get',
+    giveLabel: 'Give',
+    goldPickBody: 'Choose <b>{n}</b> more',
+    goldPickTitle: '{name}: take resources from the gold field',
+    handToThem: 'Hand it to them',
+    harborLabel: 'harbor',
+    howToPlay: 'How to Play',
+    humanPlayerConfirm: 'Human player · confirm with them',
+    humanProposalBody: '<b>{name}</b> offers you {give} in exchange for your {get}.',
+    humanProposalIncoming: '{name} has a trade offer for you',
+    humanProposalTitle: 'Offer for {name}',
+    humanTag: 'human',
+    humanTradeDeclined: '{name} declined',
+    humanTradeSucceeded: 'Traded with {name}!',
+    increase: 'Increase',
+    isThisYou: 'Is this {name}?',
+    largestArmyBadge: 'Largest Army',
+    largestArmyShort: 'Largest Army',
+    longestRoadBadge: 'Longest Road',
+    longestRoadShort: 'Longest',
+    minPointsLabel: 'min. points',
+    minVp: 'min. {n} VP',
+    minVpShort: 'min. {n}',
+    monopolyDialogBody: 'Take all of the chosen resource from every player.',
+    monopolyDialogTitle: 'Monopoly: choose a resource',
+    moveShipBtnLabel: '⛵ Move ship (once per turn)',
+    mustDiscardN: 'Must discard {n} cards',
+    neverMind: 'Never mind',
+    noDevCardsYet: 'No development cards yet',
+    noOneAccepted: 'No one accepted your offer.',
+    none: 'none',
+    npcJoining: '{n} NPC(s) will join (4 total)',
+    npcProposalBody: '<b>{name}</b> offers {give} in exchange for your {want}.',
+    npcProposalTitle: 'Trade offer from {name}',
+    npcsTurn: 'NPC’s turn',
+    okCanTrade: 'OK! You can trade',
+    pickRoadSpot: 'Choose where to place the road',
+    pickSettlementSpot: 'Choose where to place the settlement',
+    pirateSea: 'Pirate (sea)',
+    placingNth: 'Placing #{n}',
+    playAgain: 'Play again',
+    playerLabel: 'Player',
+    playerN: 'Player {n}',
+    pleaseWait: 'Please wait a moment',
+    plentyDialogBody: 'Take 2 resources of your choice from the bank.',
+    plentyDialogTitle: 'Year of Plenty: choose 2 resources',
+    proposalReplyBody: 'You give {give} → you get {get}',
+    proposalReplyTitle: 'Replies to your offer',
+    rankLabel: 'Rank',
+    reasonFits: 'Fits their build plan',
+    reasonInvalid: 'Invalid trade',
+    reasonMismatch: 'Not a good fit',
+    reasonShort: 'Not enough {res}',
+    reasonTooMuch: 'Asking for too much',
+    receive: 'Receive',
+    resourceLabel: 'Resource',
+    resourceShort2: 'Not enough resources',
+    resultLine: '{settlements} settlements · {cities} cities · {roads} roads · {knights} knights',
+    robberLand: 'Robber (land)',
+    rollDiceLabel: 'Roll the dice',
+    rulesBarbariansJudge: '<b>⚔ Defense check:</b> On landing, compare <b>everyone’s total played Knights</b> against <b>the total number of cities on the board</b>.',
+    rulesBarbariansLose: '<b>❌ Knights &lt; Cities → Defense fails:</b> Any player who played <b>no Knight this round</b> has one city downgraded to a settlement (−1 point).',
+    rulesBarbariansNote: '※ Tip: Knight cards aren’t just for the robber — they’re a <b>shield for your cities</b>. More cities means a juicier target for the barbarians, so balance city-building with Knights. No cities means no damage.',
+    rulesBarbariansTiming: '<b>⏳ Timing:</b> The barbarian ship advances every turn and lands every <b>{n} turns</b>, attacking every player’s <b>cities</b>. Check the sidebar tracker for turns remaining.',
+    rulesBarbariansTitle: 'Expansion: Barbarian Attack (simplified Cities & Knights)',
+    rulesBarbariansWin: '<b>✅ Knights ≥ Cities → Defense succeeds:</b> The player with the most victory points receives <b>1 development card</b>.',
+    rulesBuildCost: '<b>🔨 Build costs:</b> Road = 🌲🧱 / Settlement = 🌲🧱🌾🐑 / City (upgrade) = 🌾2 ⛏3 / Dev card = 🌾🐑⛏. Max 5 settlements, 4 cities, 15 roads. Upgrading a settlement to a city frees up a settlement slot.',
+    rulesDevIntro: '<b>🃏 Development cards:</b> Can’t be played the turn you buy them, and only <b>one per turn, starting your next turn</b>.',
+    rulesDevKnight: '· <b>Knight</b> = move the robber to any tile and steal 1 card (confirm before placing)',
+    rulesDevMonopoly: '· <b>Monopoly</b> = pick one resource and take it from everyone',
+    rulesDevPlenty: '· <b>Year of Plenty</b> = take 2 resources of your choice from the bank',
+    rulesDevRoadBuilding: '· <b>Road Building</b> = place 2 free roads of your choice',
+    rulesDevVictory: '· <b>Victory Point</b> = a hidden point, automatic (only you can see it)<br>Playing 3+ Knights gives you <b>Largest Army +2</b>.',
+    rulesGoal: '<b>🎯 Goal:</b> First to <b>10 victory points</b> wins. Settlements are worth 1 point, cities 2. Longest Road, Largest Army and victory point cards also count.',
+    rulesHarbors: '<b>⚓ Bank &amp; harbor trade:</b> Bank trades are normally 4:1. A harbor settlement/city gives <b>3:1</b> (any resource) or <b>2:1</b> (a specific resource). Dotted lines on the board show which spots connect to a harbor, and your harbors are listed in the bank panel. You can also propose direct trades to other players on your turn.',
+    rulesHeroesIntro: 'At the start of the game, each player is randomly given a <b>unique hero</b>. Hero abilities are <b>always-on passive effects</b> for the whole game. A hero badge appears next to each player’s name.',
+    rulesHeroesMine: 'Your hero: <b>{icon} {name}</b><br>{desc}',
+    rulesHeroesNote: '※ Your hero is fixed for the game once assigned — no trading or changing.',
+    rulesHeroesTitle: 'Expansion: Legend of Heroes (yuji original)',
+    rulesLargestArmy: '',
+    rulesLongestRoad: '<b>🛣 Longest Road:</b> Whoever connects 5+ roads{ships} in the longest unbroken chain gets <b>+2 points</b>.',
+    rulesLongestRoadShips: ' / ships',
+    rulesNpcSailing: ' (they’ll also sail for new islands)',
+    rulesNpcStrength: '<b>🤖 NPC strength:</b> Choose Easy/Normal/Hard (and more) on the start screen. Stronger NPCs build roads more cleverly and use development cards more aggressively{sailing}.',
+    rulesProduction: '<b>🎲 Producing resources:</b> You must roll the dice first each turn. Owners of settlements (1 card) and cities (2 cards) adjacent to the rolled number receive resources. <b>You can’t build, trade, or play development cards until you roll.</b>',
+    rulesSeafarersGold: '<b>✨ Gold fields:</b> Owners of settlements/cities next to a gold field get to <b>choose any resource</b> when its number is rolled (1 for a settlement, 2 for a city).',
+    rulesSeafarersIsland: '<b>🏝 Discovering new islands:</b> The first player to place a settlement on an island other than the home island gets <b>+{n} point</b>. Sail across the sea to reach one!',
+    rulesSeafarersMoveShip: '<b>🚢 Moving ships:</b> Once per turn you can move a single ship from the <b>open end of a route</b> to a new spot (ships placed or moved this turn can’t move again). Use the "⛵ Move Ship" button.',
+    rulesSeafarersPirate: '<b>🏴‍☠️ Pirates:</b> At sea, the pirate moves instead of the robber. Rolling a 7 or playing a Knight lets you choose to move the robber (land) or the pirate (sea). No ships can be built in a pirate-occupied sea zone, and you can steal 1 card from an adjacent opponent.',
+    rulesSeafarersShip: '<b>⛵ Ships:</b> Cost 🌲+🐑. Can be placed on sea-adjacent edges, extending from your <b>coastal settlement/city</b> or a connected <b>ship’s open end</b>. Roads and ships connect through settlements/cities and combine for <b>Longest Road</b>.',
+    rulesSeafarersTitle: 'Expansion: Seafarers',
+    rulesSetup: '<b>🏝 Setup:</b> Everyone places 2 settlements and 2 roads each, in snake-draft order (you → others → others → you). You receive starting resources from the tiles around your second settlement.',
+    rulesSeven: '<b>🦹 7s and the robber:</b> On a 7, anyone with 8+ cards discards half. The roller moves the robber and steals 1 card from an adjacent player. A tile with the robber on it produces nothing.',
+    rulesVpVisibility: '<b>🔒 Score visibility:</b> Only your own total is shown; other players’ totals stay hidden until the game ends.',
+    sageDialogBody: 'Keep one of the two drawn cards. The other goes back into the deck.',
+    sageDialogTitle: 'Ancient Sage: pick 1 of 2',
+    selected: 'Selected',
+    setupPhaseLabel: 'Setup',
+    setupTextRoad: 'Select a white line, then press Confirm below',
+    setupTextSettlement: 'Select a small white dot, then press Confirm below',
+    setupTitlePlacing: '{name} is placing…',
+    setupTitleRoad: 'Place a road',
+    setupTitleSettlement: 'Place a settlement',
+    sevenChoiceBody: 'Which one do you want to move?',
+    sevenChoiceTitle: '7! Move the robber or the pirate',
+    statsLine: 'Hand {hand} · Settlements {settlements} · Cities {cities} · Roads {roads} · Dev {dev} · Knights {knights}',
+    stealFromWhoBody: 'You can steal 1 card from a player adjacent to the robber’s tile.',
+    stealFromWhoTitle: 'Steal from who?',
+    step1SelectOnBoard: '① Select on the board',
+    step2Confirm: '② Confirm here',
+    sumLabel: 'Total {n}',
+    totalLabel: 'Total {n}',
+    tradeHintModal: 'Press "Trade" or "Hand it to them" for whoever you want to trade with.',
+    turnsRemaining: '{n} turns left',
+    use: 'Use',
+    victoryPointsLabel: 'Victory Points',
+    winSub: 'Reached {n} victory points and became the ruler of the isle.',
+    winTitle: '{name} wins!',
+    you: 'You',
+    yourCurrentVpTitle: 'Your current victory points (including hidden VP cards)',
+    yourTurnCheckHand: 'It’s your turn. Check your hand when you’re ready.',
+  }
+};
+function t(key, vars) {
+  let s = (T[LANG] && T[LANG][key]) ?? T.ja[key] ?? key;
+  if (vars) Object.keys(vars).forEach(k => { s = s.split(`{${k}}`).join(vars[k]); });
+  return s;
+}
+// "{name}'s hand" reads awkwardly in English when name is literally "You" (e.g. "You's hand").
+// Japanese "あなたの手札" doesn't have this problem, so only English needs the special case.
+function handOfLabel(name) {
+  return (LANG === 'en' && name === t('you')) ? 'Your hand' : t('handOf', { name });
+}
+// Same issue for "{name} wins!" → "You wins!" reads wrong; needs "You win!" instead.
+function winTitleText(name) {
+  return (LANG === 'en' && name === t('you')) ? 'You win!' : t('winTitle', { name });
+}
+function diceOfLabel(name) {
+  return (LANG === 'en' && name === t('you')) ? 'Your dice' : t('diceOf', { name });
+}
+function yourTurnLabel(name) {
+  return (LANG === 'en' && name === t('you')) ? 'It’s your turn' : t('yourTurn', { name });
+}
+// Apply translations to static HTML marked with data-i18n / data-i18n-ph (placeholder) /
+// data-i18n-title (title attr). Text content is read from data-ja / data-en on the element
+// itself so translations live next to the Japanese text they replace.
+function applyI18n() {
+  document.querySelectorAll('[data-en]').forEach(el => {
+    const val = LANG === 'en' ? el.dataset.en : el.dataset.ja;
+    if (val == null) return;
+    if (el.dataset.i18nAttr) el.setAttribute(el.dataset.i18nAttr, val);
+    else el.textContent = val;
+  });
+  if (document.documentElement) document.documentElement.lang = LANG;
+  document.body?.classList.toggle('lang-en', LANG === 'en');
+}
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'ja';
+  try { localStorage.setItem('lang', LANG); } catch (e) {}
+  applyI18n();
+  $$('.lang-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.lang === LANG));
+  if (typeof renderFlexTrade === 'function') renderFlexTrade();
+  if (typeof renderBankTradeOptions === 'function') renderBankTradeOptions();
+  if (typeof updateStartPlayerFields === 'function') updateStartPlayerFields();
+  if (typeof state !== 'undefined' && state) render();
+}
+// Development card display text, shared across the dev-card panel, the "use" button and the sage dialog.
+const DEV_CARD_NAMES = { ja: { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占', victory: '勝利点' }, en: { knight: 'Knight', roadBuilding: 'Road Building', plenty: 'Year of Plenty', monopoly: 'Monopoly', victory: 'Victory Point' } };
+const DEV_CARD_DESC_SHORT = { ja: { knight: '盗賊を移動', roadBuilding: '街道を2本建設', plenty: '好きな資源を2枚', monopoly: '1種類を独占', victory: '非公開の1勝利点' }, en: { knight: 'Move the robber', roadBuilding: 'Build 2 free roads', plenty: '2 resources of your choice', monopoly: 'Monopolize 1 resource', victory: 'A hidden victory point' } };
+const DEV_CARD_DESC_LONG = { ja: { knight: '盗賊を移動させ1枚奪う', roadBuilding: '街道を2本無料で建設', plenty: '好きな資源を2枚獲得', monopoly: '1種類を全員から独占', victory: '非公開の1勝利点' }, en: { knight: 'Move the robber and steal a card', roadBuilding: 'Build 2 roads for free', plenty: 'Take 2 resources of your choice', monopoly: 'Take one resource from everyone', victory: 'A hidden victory point' } };
+function devCardName(card) { return DEV_CARD_NAMES[LANG][card]; }
+function devCardDescShort(card) { return DEV_CARD_DESC_SHORT[LANG][card]; }
+function devCardDescLong(card) { return DEV_CARD_DESC_LONG[LANG][card]; }
 // Barbarian Pack (Cities & Knights inspired) — barbarians invade every N turns
 const BARBARIAN_STEPS = 7;
 // Seafarers expansion constants
@@ -123,7 +668,7 @@ function cancelCardAction() {
   if ($('#modal').open) $('#modal').close();
   $('#modalClose').hidden = false;
   render();
-  toast('カードの使用を取り消しました');
+  toast(t('cardCancelled'));
 }
 const $ = selector => document.querySelector(selector);
 function currentIsBot() { return !!(state && state.players && state.players[state.turn] && state.players[state.turn].bot); }
@@ -133,7 +678,7 @@ function beginHumanTurn(message) {
     state.awaitingPass = true;
     render(); // hides the hand bar while the device is being passed
     const player = state.players[state.turn];
-    showPassScreen(player.name, message || 'あなたの番です。準備ができたら手札を見ましょう。', () => {
+    showPassScreen(player.name, message || t('yourTurnCheckHand'), () => {
       state.awaitingPass = false;
       render();
       if (message) toast(message);
@@ -147,7 +692,7 @@ function beginHumanTurn(message) {
 function showPassScreen(name, subtitle, onConfirm, color) {
   const overlay = $('#passScreen');
   if (!overlay) { if (onConfirm) onConfirm(); return; }
-  if ($('#passName')) $('#passName').textContent = `${name} さんですか？`;
+  if ($('#passName')) $('#passName').textContent = t('isThisYou', { name });
   if ($('#passSubtitle')) $('#passSubtitle').textContent = subtitle || '';
   const avatar = $('#passAvatar');
   if (avatar) {
@@ -203,17 +748,18 @@ function soundEffect(kind) {
 }
 
 // 少し激しめのBGM（速いテンポ・マイナーキー・強いベースとキック）
+const BGM_NAMES_EN = ['Battle of Rough Waves', 'Island Raid', 'Stormy Voyage', 'Hour of Reckoning'];
 const BGM_TRACKS = [
-  { name: '荒波の戦い', wave: 'sawtooth', tempo: 400, kick: true,
+  { get name() { return LANG === 'en' ? BGM_NAMES_EN[0] : '荒波の戦い'; }, wave: 'sawtooth', tempo: 400, kick: true,
     notes: [329.63, 493.88, 587.33, 493.88, 392, 587.33, 659.25, 493.88, 440, 659.25, 587.33, 440, 392, 493.88, 329.63, 246.94],
     bass: [82.41, 82.41, 110, 98] },
-  { name: '島の襲撃', wave: 'square', tempo: 360, kick: true,
+  { get name() { return LANG === 'en' ? BGM_NAMES_EN[1] : '島の襲撃'; }, wave: 'square', tempo: 360, kick: true,
     notes: [440, 523.25, 659.25, 523.25, 587.33, 659.25, 783.99, 659.25, 523.25, 659.25, 587.33, 523.25, 493.88, 440, 392, 440],
     bass: [110, 110, 87.31, 98] },
-  { name: '嵐の航海', wave: 'sawtooth', tempo: 440, kick: true,
+  { get name() { return LANG === 'en' ? BGM_NAMES_EN[2] : '嵐の航海'; }, wave: 'sawtooth', tempo: 440, kick: true,
     notes: [293.66, 349.23, 440, 587.33, 440, 349.23, 392, 466.16, 587.33, 466.16, 392, 349.23, 293.66, 349.23, 261.63, 293.66],
     bass: [73.42, 73.42, 98, 87.31] },
-  { name: '決戦の刻', wave: 'square', tempo: 380, kick: true,
+  { get name() { return LANG === 'en' ? BGM_NAMES_EN[3] : '決戦の刻'; }, wave: 'square', tempo: 380, kick: true,
     notes: [261.63, 311.13, 392, 466.16, 392, 311.13, 349.23, 415.3, 523.25, 415.3, 349.23, 311.13, 392, 311.13, 261.63, 233.08],
     bass: [65.41, 65.41, 87.31, 77.78] }
 ];
@@ -241,7 +787,7 @@ function startBackgroundMusic() {
 function cycleBgm() {
   currentTrack = (currentTrack + 1) % BGM_TRACKS.length;
   if (audioEnabled) startBackgroundMusic();
-  toast(`BGM：${BGM_TRACKS[currentTrack].name}`);
+  toast(t('bgmName', { name: BGM_TRACKS[currentTrack].name }));
 }
 
 function setAudioEnabled(enabled) {
@@ -292,11 +838,11 @@ function newGame() {
   const humanCount = Math.min(4, Math.max(1, gameConfig.humanCount || 1));
   const npcCount = Math.max(0, gameConfig.npcCount != null ? gameConfig.npcCount : 4 - humanCount);
   const total = Math.min(4, Math.max(2, humanCount + npcCount));
-  const humanNames = gameConfig.humanNames || [gameConfig.playerName || 'あなた'];
+  const humanNames = gameConfig.humanNames || [gameConfig.playerName || t('you')];
   const players = [];
   for (let i = 0; i < total; i++) {
     const bot = i >= humanCount;
-    const name = bot ? (NPC_NAMES[i - humanCount] || `NPC${i - humanCount + 1}`) : ((humanNames[i] || '').trim() || `プレイヤー${i + 1}`);
+    const name = bot ? (npcName(i - humanCount) || `NPC${i - humanCount + 1}`) : ((humanNames[i] || '').trim() || t('playerN', { n: i + 1 }));
     players.push({ name, color: COLORS[i % COLORS.length], bot, vp: 0, resources: emptyResources(), dev: [], newDev: [], playedKnights: 0, devPlayed: false, islandVP: 0, hero: null });
   }
   if (gameConfig.expansionHeroes) {
@@ -320,8 +866,8 @@ function newGame() {
   buildBoard();
   $('#board').style.transform = `scale(${scale})`;
   render();
-  if (currentIsBot()) { toast(`${state.players[state.turn].name}から配置します`); scheduleBotSetup(); }
-  else beginHumanTurn('最初の開拓地を置いてください');
+  if (currentIsBot()) { toast(t('placingFrom', { name: state.players[state.turn].name })); scheduleBotSetup(); }
+  else beginHumanTurn(t('firstSettlementPrompt'));
   startNpcHeartbeat();
 }
 
@@ -675,8 +1221,8 @@ function render() {
   if (document.body) document.body.classList.toggle('expansion-seafarers', state.expansion === 'seafarers');
   $('#turnName').textContent = player.name;
   $('#turnDot').style.background = player.color;
-  $('#turnScore').textContent = setup ? `${Math.floor(state.setupStep / 4) + 1}個目を配置` : (state.gameOver ? `${totalVP(state.turn)} VP` : `最低 ${visibleVP(state.turn)} VP`);
-  $('#roundLabel').textContent = setup ? '初期配置' : `ROUND ${state.round}`;
+  $('#turnScore').textContent = setup ? t('placingNth', { n: Math.floor(state.setupStep / 4) + 1 }) : (state.gameOver ? `${totalVP(state.turn)} VP` : t('minVp', { n: visibleVP(state.turn) }));
+  $('#roundLabel').textContent = setup ? t('setupPhaseLabel') : `ROUND ${state.round}`;
   const botTurnNow = currentIsBot();
   const viewer = state.humanCount === 1 ? 0 : ((botTurnNow || state.awaitingPass) ? null : state.turn);
   $('#playersList').innerHTML = state.players.map((item, i) => {
@@ -685,26 +1231,26 @@ function render() {
     const target = state.targetScore;
     // 自分の行は「今の本当の点数（隠し勝利点込み）」を大きく、最低点は小さく。相手は最低点のみ。
     const vpHtml = state.gameOver
-      ? `<small>勝利点</small>${totalVP(i)} / ${target}`
+      ? `<small>${t('victoryPointsLabel')}</small>${totalVP(i)} / ${target}`
       : (isMe
-        ? `<b class="vp-now" title="あなたの現在の勝利点（隠し勝利点カード込み）">${totalVP(i)}</b><small class="vp-min">最低 ${visibleVP(i)} / ${target}</small>`
-        : `<small>最低点</small>${visibleVP(i)} / ${target}`);
+        ? `<b class="vp-now" title="${t('yourCurrentVpTitle')}">${totalVP(i)}</b><small class="vp-min">${t('minVpShort', { n: visibleVP(i) })} / ${target}</small>`
+        : `<small>${t('minPointsLabel')}</small>${visibleVP(i)} / ${target}`);
     const handCount = Object.values(item.resources).reduce((a, b) => a + b, 0);
     const devCount = item.dev.length + item.newDev.length;
-    const stats = `手札${handCount} · 開拓地${countPieces(i, 'settlement')} · 都市${countPieces(i, 'city')} · 道${countPieces(i, 'road')} · 発展${devCount} · 騎士${item.playedKnights}`;
+    const stats = t('statsLine', { hand: handCount, settlements: countPieces(i, 'settlement'), cities: countPieces(i, 'city'), roads: countPieces(i, 'road'), dev: devCount, knights: item.playedKnights });
     const heroData = item.hero ? HEROES.find(h => h.id === item.hero) : null;
     const badges = [
-      state.longestRoadOwner === i ? '<span class="award-badge road-award">🛣 最長交易路</span>' : '',
-      state.largestArmyOwner === i ? '<span class="award-badge army-award">⚔ 最大騎士力</span>' : '',
+      state.longestRoadOwner === i ? `<span class="award-badge road-award">🛣 ${t('longestRoadBadge')}</span>` : '',
+      state.largestArmyOwner === i ? `<span class="award-badge army-award">⚔ ${t('largestArmyBadge')}</span>` : '',
       heroData ? `<span class="award-badge hero-badge" title="${heroData.desc}">${heroData.icon} ${heroData.name}</span>` : ''
     ].join('');
     return `<div class="player-row ${i === state.turn ? 'active' : ''}"><span class="avatar" style="background:${item.color}">${item.name[0]}</span><span class="player-name"><b>${item.name}${isMe ? ' (YOU)' : ''}${item.bot ? ' <small class="npc-tag">NPC</small>' : ''}</b><small>${stats}</small>${badges ? `<small class="award-row">${badges}</small>` : ''}${breakdown ? `<small class="vp-breakdown">${breakdown}</small>` : ''}</span><span class="vp">${vpHtml}</span></div>`;
   }).join('');
   const me = viewer != null ? state.players[viewer] : null;
-  $('#handLabel').textContent = me ? `${me.name}の手札` : 'NPCの手番';
+  $('#handLabel').textContent = me ? handOfLabel(me.name) : t('npcsTurn');
   $('#resourceGrid').innerHTML = Object.entries(RESOURCES).map(([key, resource]) => `<div class="resource${me ? '' : ' hand-hidden'}"><b>${me ? me.resources[key] : '–'}</b><i>${resource.icon}</i><small>${resource.name}</small></div>`).join('');
   $('#cardCount').textContent = me ? `${Object.values(me.resources).reduce((a, b) => a + b, 0)} CARDS` : '';
-  $('#devCount').textContent = `${me ? me.dev.length + me.newDev.length : 0}枚`;
+  $('#devCount').textContent = t('countCards', { n: me ? me.dev.length + me.newDev.length : 0 });
   $('#playDevBtn').disabled = setup || botTurnNow || !me || !state.rolled || state.resolvingSeven || me.devPlayed || !me.dev.some(card => card !== 'victory');
   renderDevelopmentCards();
   renderRollLog();
@@ -780,20 +1326,20 @@ function render() {
     const canMove = state.expansion === 'seafarers' && !setup && !state.resolvingSeven && !botTurnNow && state.rolled && !state.movedShipThisTurn && edges.some((_, i) => isMovableShip(i, state.turn));
     moveShipBtn.disabled = !inMove && !canMove;
     moveShipBtn.classList.toggle('active', inMove);
-    moveShipBtn.textContent = inMove ? '✕ 船の移動をやめる' : '⛵ 船を移動（1ターン1回）';
+    moveShipBtn.textContent = inMove ? t('cancelShipMove') : t('moveShipBtnLabel');
   }
   const setupSelectionReady = state.setupPart === 'settlement' ? state.pendingSetupVertex != null : state.pendingSetupEdge != null;
   $('#rollBtn').disabled = setup ? botTurnNow || !setupSelectionReady : state.rolled || botTurnNow || !!state.gamblerChoices;
   $('#endTurnBtn').disabled = setup || state.resolvingSeven || (!botTurnNow && !state.rolled);
-  $('#endTurnBtn').innerHTML = !setup && botTurnNow ? 'NPCを進める <b>→</b>' : 'ターン終了 <b>→</b>';
+  $('#endTurnBtn').innerHTML = !setup && botTurnNow ? `${t('advanceNpc')} <b>→</b>` : `${t('endTurn')} <b>→</b>`;
   $('#npcControlBtn').hidden = !botTurnNow || state.gameOver;
-  $('#npcControlBtn').textContent = setup ? 'NPCの初期配置を進める →' : 'NPCを今すぐ進める →';
+  $('#npcControlBtn').textContent = setup ? t('advanceNpcSetup') : t('advanceNpcNow');
   // 強運の博徒の出目選択バー（盤面を覆わないよう下部に表示）
   const gp = $('#gamblerPick');
   if (gp) {
     if (state.gamblerChoices && !setup && !botTurnNow) {
-      gp.innerHTML = `<span class="gp-label">🎲 出た目から1つ選ぶ</span>` + state.gamblerChoices.map((pair, i) =>
-        `<button class="gp-opt${pair[0] + pair[1] === 7 ? ' gp-seven' : ''}" onclick="chooseGamblerDie(${i})"><span class="gp-dice"><b>${pair[0]}</b><b>${pair[1]}</b></span><small>合計 ${pair[0] + pair[1]}</small></button>`).join('');
+      gp.innerHTML = `<span class="gp-label">🎲 ${t('gamblerPickLabel')}</span>` + state.gamblerChoices.map((pair, i) =>
+        `<button class="gp-opt${pair[0] + pair[1] === 7 ? ' gp-seven' : ''}" onclick="chooseGamblerDie(${i})"><span class="gp-dice"><b>${pair[0]}</b><b>${pair[1]}</b></span><small>${t('sumLabel', { n: pair[0] + pair[1] })}</small></button>`).join('');
       gp.style.display = 'flex';
     } else {
       gp.style.display = 'none';
@@ -810,12 +1356,12 @@ function render() {
   if (setup) {
     const humanTurn = !botTurnNow;
     const placingSettlement = state.setupPart === 'settlement';
-    $('#setupGuideTitle').textContent = humanTurn ? (placingSettlement ? '開拓地を置こう' : '街道を置こう') : `${player.name}が配置中…`;
-    $('#setupGuideText').textContent = humanTurn ? (placingSettlement ? '小さい白い丸を選び、下の決定ボタンを押してください' : '白い線を選び、下の決定ボタンを押してください') : '少し待ってください';
+    $('#setupGuideTitle').textContent = humanTurn ? (placingSettlement ? t('setupTitleSettlement') : t('setupTitleRoad')) : t('setupTitlePlacing', { name: player.name });
+    $('#setupGuideText').textContent = humanTurn ? (placingSettlement ? t('setupTextSettlement') : t('setupTextRoad')) : t('pleaseWait');
     const selected = placingSettlement ? state.pendingSetupVertex != null : state.pendingSetupEdge != null;
-    $('#rollBtn').innerHTML = `<span class="dice-icon">${placingSettlement ? '⌂' : '━'}</span><span><small>${selected ? '選択済み' : '① 盤面から選択'}</small>${selected ? '② ここに決定' : (placingSettlement ? '開拓地の場所を選ぶ' : '街道の場所を選ぶ')}</span>`;
+    $('#rollBtn').innerHTML = `<span class="dice-icon">${placingSettlement ? '⌂' : '━'}</span><span><small>${selected ? t('selected') : t('step1SelectOnBoard')}</small>${selected ? t('step2Confirm') : (placingSettlement ? t('pickSettlementSpot') : t('pickRoadSpot'))}</span>`;
   } else {
-    $('#rollBtn').innerHTML = '<span class="dice-icon">⚄</span><span><small>アクション</small>ダイスを振る</span>';
+    $('#rollBtn').innerHTML = `<span class="dice-icon">⚄</span><span><small>${t('actionLabel')}</small>${t('rollDiceLabel')}</span>`;
   }
   updateAvailable();
   renderBarbarian();
@@ -866,10 +1412,10 @@ function myHarborSummary(player = state.turn) {
   Object.entries(state.harbors).forEach(([vertex, type]) => {
     if (state.buildings[vertex]?.player === player) owned.add(type);
   });
-  if (!owned.size) return '保有する港はありません（すべて<b>4:1</b>）';
-  const generic = owned.has(null) ? '<b>3:1</b> どの資源でも' : '';
-  const specific = [...owned].filter(t => t).map(t => `<b>2:1</b> ${RESOURCES[t].icon}${RESOURCES[t].name}`);
-  return '保有する港：' + [generic, ...specific].filter(Boolean).join(' ／ ');
+  if (!owned.size) return t('noHarborsOwned');
+  const generic = owned.has(null) ? `<b>3:1</b> ${t('anyResource')}` : '';
+  const specific = [...owned].filter(res => res).map(res => `<b>2:1</b> ${RESOURCES[res].icon}${RESOURCES[res].name}`);
+  return t('harborsOwnedPrefix') + [generic, ...specific].filter(Boolean).join(' ／ ');
 }
 
 function maritimeRate(player, resource) {
@@ -896,14 +1442,14 @@ function vpBreakdown(player) {
   const settlements = Object.values(state.buildings).filter(b => b.player === player && b.type === 'settlement').length;
   const cities = Object.values(state.buildings).filter(b => b.player === player && b.type === 'city').length;
   const parts = [];
-  if (settlements) parts.push(`開拓地×${settlements}`);
-  if (cities) parts.push(`都市×${cities}`);
-  if (state.longestRoadOwner === player) parts.push('最長交易路+2');
-  if (state.largestArmyOwner === player) parts.push('最大騎士力+2');
-  if (p.islandVP) parts.push(`新島発見+${p.islandVP}`);
+  if (settlements) parts.push(t('breakdownSettlements', { n: settlements }));
+  if (cities) parts.push(t('breakdownCities', { n: cities }));
+  if (state.longestRoadOwner === player) parts.push(t('breakdownLongestRoad'));
+  if (state.largestArmyOwner === player) parts.push(t('breakdownLargestArmy'));
+  if (p.islandVP) parts.push(t('breakdownIsland', { n: p.islandVP }));
   const secretCards = [...p.dev, ...p.newDev].filter(c => c === 'victory').length;
-  if (secretCards) parts.push(`勝利点カード×${secretCards}`);
-  return parts.join('・');
+  if (secretCards) parts.push(t('breakdownVpCards', { n: secretCards }));
+  return parts.join(LANG === 'en' ? ', ' : '・');
 }
 
 function totalVP(player) {
@@ -975,27 +1521,24 @@ function renderRollLog() {
 function renderDevelopmentCards() {
   const viewer = state.humanCount === 1 ? 0 : ((currentIsBot() || state.awaitingPass) ? null : state.turn);
   const player = viewer != null ? state.players[viewer] : null;
-  if (!player) { $('#devCardsList').innerHTML = '<small>NPCの手番です</small>'; return; }
-  const names = { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占', victory: '勝利点' };
-  const descriptions = { knight: '盗賊を移動', roadBuilding: '街道を2本建設', plenty: '好きな資源を2枚', monopoly: '1種類を独占', victory: '非公開の1勝利点' };
+  if (!player) { $('#devCardsList').innerHTML = `<small>${t('npcsTurn')}</small>`; return; }
   const cards = [
     ...player.dev.map((card, index) => ({ card, index, fresh: false })),
     ...player.newDev.map((card, index) => ({ card, index, fresh: true }))
   ];
-  $('#devCardsList').innerHTML = cards.length ? cards.map(item => `<div class="dev-card-item ${item.fresh ? 'new' : ''}"><span><b>✦ ${names[item.card]}</b><br>${descriptions[item.card]}${item.fresh ? ' · 次ターンから' : ''}</span>${item.card === 'victory' ? '<em>自動</em>' : `<button data-dev-card="${item.card}" ${item.fresh || player.devPlayed || currentIsBot() || !state.rolled || state.resolvingSeven ? 'disabled' : ''}>使う</button>`}</div>`).join('') : '<small>発展カードはまだありません</small>';
+  $('#devCardsList').innerHTML = cards.length ? cards.map(item => `<div class="dev-card-item ${item.fresh ? 'new' : ''}"><span><b>✦ ${devCardName(item.card)}</b><br>${devCardDescShort(item.card)}${item.fresh ? ` · ${t('fromNextTurn')}` : ''}</span>${item.card === 'victory' ? `<em>${t('automatic')}</em>` : `<button data-dev-card="${item.card}" ${item.fresh || player.devPlayed || currentIsBot() || !state.rolled || state.resolvingSeven ? 'disabled' : ''}>${t('use')}</button>`}</div>`).join('') : `<small>${t('noDevCardsYet')}</small>`;
   $$('[data-dev-card]').forEach(button => button.onclick = () => {
-    const labels = { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占' };
-    if (playDevelopment(state.turn, button.dataset.devCard)) toast(`${labels[button.dataset.devCard]}カードを使いました`);
+    if (playDevelopment(state.turn, button.dataset.devCard)) toast(t('devCardUsed', { label: devCardName(button.dataset.devCard) }));
   });
 }
 
 function placementTip(vertex) {
   const parts = vertices[vertex].tiles.map(tileIndex => {
     const tile = tiles[tileIndex];
-    return `${TYPE_DATA[tile.type].icon}${tile.num || '砂漠'}`;
+    return `${TYPE_DATA[tile.type].icon}${tile.num || t('desertLabel')}`;
   });
-  const harbor = Object.prototype.hasOwnProperty.call(state.harbors, vertex) ? ` · 港${state.harbors[vertex] ? `2:1 ${RESOURCES[state.harbors[vertex]].icon}` : '3:1'}` : '';
-  return `${parts.join(' / ')} · 期待値${Math.round(setupVertexScore(vertex))}${harbor}`;
+  const harbor = Object.prototype.hasOwnProperty.call(state.harbors, vertex) ? ` · ${t('harborLabel')}${state.harbors[vertex] ? `2:1 ${RESOURCES[state.harbors[vertex]].icon}` : '3:1'}` : '';
+  return t('expectedValue', { parts: parts.join(' / '), score: Math.round(setupVertexScore(vertex)), harbor });
 }
 
 function edgeTouches(edgeIndex, vertex) {
@@ -1053,7 +1596,7 @@ function placeShip(edgeIndex) {
   (state.shipsBuiltThisTurn = state.shipsBuiltThisTurn || []).push(edgeIndex);
   state.mode = null;
   updateAwards();
-  toast('船を建設しました');
+  toast(t('shipBuilt'));
   soundEffect('build');
   render();
   checkWin(me);
@@ -1079,13 +1622,13 @@ function beginMoveShip() {
   const me = state.turn;
   if (state.phase !== 'play' || currentIsBot() || !state.rolled || state.resolvingSeven) return;
   if (state.expansion !== 'seafarers') return;
-  if (state.movedShipThisTurn) return toast('船の移動は1ターンに1回までです');
+  if (state.movedShipThisTurn) return toast(t('shipMoveLimit'));
   const movable = edges.some((_, i) => isMovableShip(i, me));
-  if (!movable) return toast('動かせる船がありません（航路の先端の船だけ動かせます）');
+  if (!movable) return toast(t('noMovableShips'));
   state.mode = 'moveShip';
   state.movingShip = null;
   render();
-  toast('動かす船（航路の先端）を選んでください');
+  toast(t('pickShipToMove'));
 }
 
 function pickShipToMove(edgeIndex) {
@@ -1094,7 +1637,7 @@ function pickShipToMove(edgeIndex) {
   state.movingShip = edgeIndex;
   delete state.ships[edgeIndex];
   render();
-  toast('移動先の海路を選んでください');
+  toast(t('pickShipDestination'));
 }
 
 function relocateShipTo(edgeIndex) {
@@ -1107,7 +1650,7 @@ function relocateShipTo(edgeIndex) {
   state.mode = null;
   updateAwards();
   soundEffect('build');
-  toast('船を移動しました');
+  toast(t('shipMoved'));
   render();
   checkWin(me);
 }
@@ -1136,7 +1679,7 @@ function grantIslandDiscovery(vertex, player) {
     if (state.islandSettlers[island] != null) return;
     state.islandSettlers[island] = player;
     state.players[player].islandVP = (state.players[player].islandVP || 0) + ISLAND_BONUS_VP;
-    toast(`✨ ${state.players[player].name}が新しい島を発見！ +${ISLAND_BONUS_VP}VP`);
+    toast(t('islandDiscovered', { name: state.players[player].name, vp: ISLAND_BONUS_VP }));
   });
 }
 
@@ -1145,7 +1688,7 @@ function placeBuilding(vertex) {
   if (state.phase === 'setup') {
     if (currentIsBot() || state.setupPart !== 'settlement' || !canPlaceInitialSettlement(vertex)) return;
     state.pendingSetupVertex = vertex;
-    toast('選んだ場所を自分の色で表示しました。下の「ここに決定」を押してください');
+    toast(t('setupSpotSelected'));
     render();
     return;
   }
@@ -1156,7 +1699,7 @@ function placeBuilding(vertex) {
     state.players[me].vp++;
     grantIslandDiscovery(vertex, me);
     state.mode = null;
-    toast('開拓地を建設しました');
+    toast(t('settlementBuilt'));
     soundEffect('build');
     updateAwards();
     render();
@@ -1166,7 +1709,7 @@ function placeBuilding(vertex) {
     state.buildings[vertex].type = 'city';
     state.players[me].vp++;
     state.mode = null;
-    toast('都市へ発展しました');
+    toast(t('cityBuilt'));
     soundEffect('build');
     render();
     checkWin(me);
@@ -1178,7 +1721,7 @@ function placeRoad(edgeIndex) {
   if (state.phase === 'setup') {
     if (currentIsBot() || state.setupPart !== 'road' || state.roads[edgeIndex] !== undefined || isSeaEdge(edgeIndex) || !edgeTouches(edgeIndex, state.setupVertex)) return;
     state.pendingSetupEdge = edgeIndex;
-    toast('街道を選びました。下の「ここに決定」を押してください');
+    toast(t('setupRoadSelected'));
     render();
     return;
   }
@@ -1191,7 +1734,7 @@ function placeRoad(edgeIndex) {
     soundEffect('build');
     if (state.freeRoads > 0 && edges.some((_, i) => state.roads[i] === undefined && roadConnected(i, me)) && hasPieceAvailable(me, 'road')) {
       render();
-      toast(`街道を建設しました。あと${state.freeRoads}本置けます`);
+      toast(t('roadBuiltFreeRemaining', { n: state.freeRoads }));
       checkWin(me);
       return;
     }
@@ -1199,7 +1742,7 @@ function placeRoad(edgeIndex) {
     state.mode = null;
     clearCardAction();
     render();
-    toast('街道建設カードの街道を置き終えました');
+    toast(t('roadBuildingDone'));
     checkWin(me);
     return;
   }
@@ -1207,7 +1750,7 @@ function placeRoad(edgeIndex) {
   state.roads[edgeIndex] = me;
   state.mode = null;
   updateAwards();
-  toast('街道を建設しました');
+  toast(t('roadBuilt'));
   soundEffect('build');
   render();
   checkWin(me);
@@ -1243,7 +1786,7 @@ function finishSetupTurn() {
     state.rolled = false;
     scale = .82;
     $('#board').style.transform = 'scale(.82)';
-    toast('初期配置完了！');
+    toast(t('setupComplete'));
     render();
     if (currentIsBot()) scheduleBotTurn(); else beginHumanTurn();
     return;
@@ -1252,7 +1795,7 @@ function finishSetupTurn() {
   state.botTurnStartedAt = Date.now();
   render();
   if (currentIsBot()) scheduleBotSetup();
-  else beginHumanTurn('2個目の開拓地を置いてください');
+  else beginHumanTurn(t('secondSettlementPrompt'));
 }
 
 function setupVertexScore(vertex) {
@@ -1331,7 +1874,7 @@ function scheduleBotSetup() {
       // Smart bots aim the opening road toward the best next settlement spot; others go random.
       const chosen = botRules().smart ? roads.sort((a, b) => roadValue(b, player) - roadValue(a, player))[0] : roads[Math.floor(Math.random() * roads.length)];
       state.roads[chosen] = player;
-      toast(`${state.players[player].name}が開拓地と街道を配置`);
+      toast(t('botPlacedSetup', { name: state.players[player].name }));
       finishSetupTurn();
     }, 450);
   }, 500);
@@ -1351,7 +1894,7 @@ function forceSetupNpc() {
   if (!roads.length) return;
   const chosen = botRules().smart ? roads.sort((a, b) => roadValue(b, player) - roadValue(a, player))[0] : roads[0];
   state.roads[chosen] = player;
-  toast(`${state.players[player].name}の初期配置を完了しました`);
+  toast(t('botSetupDone', { name: state.players[player].name }));
   finishSetupTurn();
 }
 
@@ -1406,10 +1949,10 @@ function gamblerRollScore(a, b, player) {
 
 function showDiceOverlay(a, b, playerName) {
   const overlay = $('#offlineDiceOverlay');
-  $('#offlineDicePlayer').textContent = `${playerName} のダイス`;
+  $('#offlineDicePlayer').textContent = diceOfLabel(playerName);
   $('#offlineDiceA').textContent = a;
   $('#offlineDiceB').textContent = b;
-  $('#offlineDiceTotal').textContent = `合計 ${a + b}`;
+  $('#offlineDiceTotal').textContent = t('totalLabel', { n: a + b });
   overlay.classList.add('show');
   clearTimeout(diceOverlayTimer);
   diceOverlayTimer = setTimeout(() => overlay.classList.remove('show'), 1100);
@@ -1427,19 +1970,19 @@ function primaryAction() {
 function confirmSetupPlacement() {
   if (state.setupPart === 'settlement') {
     const vertex = state.pendingSetupVertex;
-    if (vertex == null || !canPlaceInitialSettlement(vertex)) return toast('先に盤面の白い丸を選んでください');
+    if (vertex == null || !canPlaceInitialSettlement(vertex)) return toast(t('pickWhiteDotFirst'));
     placeInitialSettlement(vertex, state.turn);
     state.setupVertex = vertex;
     state.pendingSetupVertex = null;
     state.setupPart = 'road';
     state.mode = 'setup-road';
     soundEffect('build');
-    toast('開拓地を確定しました。次につながる街道を選んでください');
+    toast(t('settlementConfirmedPickRoad'));
     render();
     return;
   }
   const edge = state.pendingSetupEdge;
-  if (edge == null || state.roads[edge] !== undefined || !edgeTouches(edge, state.setupVertex)) return toast('先に白い街道を選んでください');
+  if (edge == null || state.roads[edge] !== undefined || !edgeTouches(edge, state.setupVertex)) return toast(t('pickWhiteRoadFirst'));
   state.roads[edge] = state.turn;
   state.pendingSetupEdge = null;
   soundEffect('build');
@@ -1502,7 +2045,7 @@ function distributeRoll(a, b) {
       }
     });
   }
-  toast(gained ? `${sum}！ 資源を ${gained} 枚獲得` : `${sum}！ 島から資源が産出しました`);
+  toast(gained ? t('rolledGained', { sum, gained }) : t('rolledNoGain', { sum }));
   if (state.goldPickQueue && state.goldPickQueue.length) processGoldPickQueue();
 }
 
@@ -1537,7 +2080,7 @@ function processDiscardQueue() {
   if (state.discardQueue && state.discardQueue.length) {
     const who = state.discardQueue[0];
     const required = Math.floor(handTotal(state.players[who]) / 2);
-    if (state.humanCount > 1) showPassScreen(state.players[who].name, `手札を ${required} 枚捨てます`, () => showDiscardDialog(who, required));
+    if (state.humanCount > 1) showPassScreen(state.players[who].name, t('mustDiscardN', { n: required }), () => showDiscardDialog(who, required));
     else showDiscardDialog(who, required);
     return;
   }
@@ -1555,7 +2098,7 @@ function finishSevenRobber() {
     }
     state.resolvingSeven = false;
     render();
-    toast(`7！ ${state.players[roller].name}が盗賊を動かしました`);
+    toast(t('sevenBotMovedRobber', { name: state.players[roller].name }));
   } else if (state.expansion === 'seafarers') {
     beginSevenChoice();
   } else {
@@ -1568,10 +2111,10 @@ function beginSevenChoice() {
   const hasSea = tiles.some(t => t.type === 'sea');
   if (!hasSea) { beginRobberChoice(); return; }
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>7！ 盗賊か海賊を動かす</h2><p>どちらを移動しますか？</p>
+  $('#modalContent').innerHTML = `<h2>${t('sevenChoiceTitle')}</h2><p>${t('sevenChoiceBody')}</p>
     <div style="display:flex;gap:10px;margin-top:16px">
-      <button style="flex:1;padding:12px;border:1px solid var(--line);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700" id="chooseLandRobber">♟ 盗賊（陸）</button>
-      <button style="flex:1;padding:12px;border:1px solid var(--line);border-radius:8px;background:#e8f4f9;cursor:pointer;font-size:14px;font-weight:700" id="chooseSeaPirate">⛵ 海賊（海）</button>
+      <button style="flex:1;padding:12px;border:1px solid var(--line);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700" id="chooseLandRobber">♟ ${t('robberLand')}</button>
+      <button style="flex:1;padding:12px;border:1px solid var(--line);border-radius:8px;background:#e8f4f9;cursor:pointer;font-size:14px;font-weight:700" id="chooseSeaPirate">⛵ ${t('pirateSea')}</button>
     </div>`;
   $('#modal').showModal();
   $('#chooseLandRobber').onclick = () => { $('#modal').close(); $('#modalClose').hidden = false; beginRobberChoice(); };
@@ -1581,14 +2124,14 @@ function beginSevenChoice() {
 function beginPirateChoice() {
   state.mode = 'pirate';
   render();
-  toast('青い海タイルを選んで海賊を動かしてください');
+  toast(t('pickSeaTileForPirate'));
 }
 
 function placePirate(tileIndex) {
   if (state.mode !== 'pirate' || tiles[tileIndex].type !== 'sea') return;
   state.pendingPirateTile = tileIndex;
   render();
-  toast('この海域でよければ「確定」を押してください');
+  toast(t('confirmSeaTile'));
 }
 
 function confirmPiratePlacement() {
@@ -1605,7 +2148,7 @@ function confirmPiratePlacement() {
   if (victims.length === 0) {
     state.resolvingSeven = false;
     render();
-    toast('海賊を移動しました（奪える相手はいません）');
+    toast(t('pirateMovedNoVictim'));
     return;
   }
   if (victims.length === 1) { stealFromVictim(victims[0]); return; }
@@ -1645,7 +2188,7 @@ function showGoldPickDialog(player, remaining, picked, onDone) {
   const resHtml = Object.entries(RESOURCES).map(([key, res]) =>
     `<button class="gold-pick-btn" data-res="${key}" style="padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white;cursor:pointer;font-size:20px">${res.icon} ${res.name}</button>`
   ).join('');
-  $('#modalContent').innerHTML = `<h2>${owner.name}：金鉱から資源を受け取る</h2><p>あと <b>${remaining}</b> 枚選んでください</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px">${resHtml}</div>`;
+  $('#modalContent').innerHTML = `<h2>${t('goldPickTitle', { name: owner.name })}</h2><p>${t('goldPickBody', { n: remaining })}</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px">${resHtml}</div>`;
   $('#modal').showModal();
   $$('[data-res]').forEach(btn => btn.onclick = () => {
     const res = btn.dataset.res;
@@ -1661,18 +2204,18 @@ function showDiscardDialog(who, required) {
   const owner = state.players[who];
   const handTotal = Object.values(owner.resources).reduce((sum, amount) => sum + amount, 0);
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>${owner.name}：手札を${required}枚捨てる</h2><p>今の手札は<b>${handTotal}枚</b>。捨てる資源の枚数を選んでください。</p><div class="discard-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<label>${data.icon} ${data.name}<small class="discard-have">${owner.resources[resource]}枚持ち</small><input id="discard-${resource}" type="number" min="0" max="${owner.resources[resource]}" value="0"></label>`).join('')}</div><p class="discard-progress" id="discardProgress">選択中: 0 / ${required}枚</p><button class="confirm-discard" id="confirmDiscardBtn">決定する</button>`;
+  $('#modalContent').innerHTML = `<h2>${t('discardTitle', { name: owner.name, n: required })}</h2><p>${t('discardBody', { n: handTotal })}</p><div class="discard-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<label>${data.icon} ${data.name}<small class="discard-have">${t('countHave', { n: owner.resources[resource] })}</small><input id="discard-${resource}" type="number" min="0" max="${owner.resources[resource]}" value="0"></label>`).join('')}</div><p class="discard-progress" id="discardProgress">${t('discardProgress', { total: 0, n: required })}</p><button class="confirm-discard" id="confirmDiscardBtn">${t('decide')}</button>`;
   $('#modal').showModal();
   const updateProgress = () => {
     const total = Object.keys(RESOURCES).reduce((sum, resource) => sum + Math.max(0, Number($(`#discard-${resource}`).value) || 0), 0);
-    $('#discardProgress').textContent = `選択中: ${total} / ${required}枚`;
+    $('#discardProgress').textContent = t('discardProgress', { total, n: required });
     $('#discardProgress').classList.toggle('discard-progress-ok', total === required);
   };
   Object.keys(RESOURCES).forEach(resource => { $(`#discard-${resource}`).oninput = updateProgress; });
   $('#confirmDiscardBtn').onclick = () => {
     const amounts = Object.fromEntries(Object.keys(RESOURCES).map(resource => [resource, Math.max(0, Number($(`#discard-${resource}`).value) || 0)]));
     const total = Object.values(amounts).reduce((sum, amount) => sum + amount, 0);
-    if (total !== required || Object.entries(amounts).some(([resource, amount]) => amount > owner.resources[resource])) return toast(`合計${required}枚を選んでください`);
+    if (total !== required || Object.entries(amounts).some(([resource, amount]) => amount > owner.resources[resource])) return toast(t('discardPickExact', { n: required }));
     Object.entries(amounts).forEach(([resource, amount]) => { owner.resources[resource] -= amount; state.bank[resource] += amount; });
     $('#modal').close();
     $('#modalClose').hidden = false;
@@ -1686,7 +2229,7 @@ function beginRobberChoice() {
   state.resolvingSeven = true;
   state.mode = 'robber';
   render();
-  toast('黄色く光る土地を選んで盗賊を動かしてください');
+  toast(t('pickGlowingTile'));
 }
 
 function placeRobber(tileIndex) {
@@ -1695,7 +2238,7 @@ function placeRobber(tileIndex) {
   if (state.expansion === 'seafarers' && tiles[tileIndex]?.type === 'sea') return;
   state.pendingRobberTile = tileIndex;
   render();
-  toast('この土地でよければ「確定」を押してください');
+  toast(t('confirmTile'));
 }
 
 function confirmRobberPlacement() {
@@ -1710,7 +2253,7 @@ function confirmRobberPlacement() {
   if (victims.length === 0) {
     state.resolvingSeven = false;
     render();
-    toast('盗賊を移動しました（奪える相手はいません）');
+    toast(t('robberMovedNoVictim'));
     return;
   }
   if (victims.length === 1) {
@@ -1732,15 +2275,15 @@ function stealFromVictim(victim) {
   }
   state.resolvingSeven = false;
   render();
-  toast(taken ? `${state.players[victim].name}から${taken}枚獲得しました` : '盗賊を移動しました');
+  toast(taken ? t('stolenFrom', { name: state.players[victim].name, n: taken }) : t('robberMoved'));
 }
 
 function showStealDialog(victims) {
   state.resolvingSeven = true;
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>誰から1枚もらう？</h2><p>盗賊を置いた土地に接するプレイヤーから1枚を奪えます。</p><div class="steal-grid">${victims.map(victim => {
+  $('#modalContent').innerHTML = `<h2>${t('stealFromWhoTitle')}</h2><p>${t('stealFromWhoBody')}</p><div class="steal-grid">${victims.map(victim => {
     const count = Object.values(state.players[victim].resources).reduce((sum, amount) => sum + amount, 0);
-    return `<button class="steal-choice" data-steal="${victim}"><span class="avatar" style="background:${state.players[victim].color}">${state.players[victim].name[0]}</span><b>${state.players[victim].name}</b><small>手札 ${count}枚</small></button>`;
+    return `<button class="steal-choice" data-steal="${victim}"><span class="avatar" style="background:${state.players[victim].color}">${state.players[victim].name[0]}</span><b>${state.players[victim].name}</b><small>${t('countCards', { n: count })}</small></button>`;
   }).join('')}</div>${handSummaryHtml()}`;
   $('#modal').showModal();
   $$('[data-steal]').forEach(button => button.onclick = () => {
@@ -1795,7 +2338,7 @@ function recoverGame() {
   if (state.phase === 'setup' && currentIsBot()) forceSetupNpc();
   else if (state.phase === 'play' && currentIsBot()) forceNpcProgress();
   render();
-  toast('状態を復旧しました。まだ進まない場合はもう一度押すか「新しいゲーム」を試してください');
+  toast(t('recovered'));
 }
 
 function advanceTurn() {
@@ -1821,7 +2364,7 @@ function advanceTurn() {
   if (gameConfig.expansionBarbarians) advanceBarbarian();
   render();
   if (currentIsBot()) scheduleBotTurn();
-  else { soundEffect('turn'); beginHumanTurn(`${state.players[state.turn].name}のターンです`); }
+  else { soundEffect('turn'); beginHumanTurn(yourTurnLabel(state.players[state.turn].name)); }
 }
 
 function advanceBarbarian() {
@@ -1836,14 +2379,14 @@ function advanceBarbarian() {
 function executeBarbsAttack() {
   const totalKnights = state.players.reduce((sum, p) => sum + (p.playedKnights || 0), 0);
   const totalCities = Object.values(state.buildings).filter(b => b.type === 'city').length;
-  if (totalCities === 0) { toast('🏴 蛮族が来たが、都市がないので被害なし！'); return; }
+  if (totalCities === 0) { toast(t('barbNoCities')); return; }
   if (totalKnights >= totalCities) {
     const leaderIdx = state.players.map((_, i) => i).reduce((best, i) => totalVP(i) > totalVP(best) ? i : best, 0);
     if (state.devDeck.length) {
       state.players[leaderIdx].newDev.push(state.devDeck.pop());
-      toast(`⚔ 蛮族撃退！${state.players[leaderIdx].name}が発展カードを獲得！`);
+      toast(t('barbRepelledReward', { name: state.players[leaderIdx].name }));
     } else {
-      toast('⚔ 蛮族撃退！よく守りました！');
+      toast(t('barbRepelled'));
     }
   } else {
     let victimCount = 0;
@@ -1855,7 +2398,7 @@ function executeBarbsAttack() {
       state.players[pIdx].vp = Math.max(0, state.players[pIdx].vp - 1);
       victimCount++;
     });
-    toast(victimCount > 0 ? '🏴 蛮族の来襲！騎士なきプレイヤーの都市が破壊されました' : '🏴 蛮族の来襲！被害なし');
+    toast(victimCount > 0 ? t('barbDamage') : t('barbNoDamage'));
   }
   render();
 }
@@ -1872,7 +2415,7 @@ function renderBarbarian() {
     `<span class="barb-step${i < step ? ' filled' : ''}${i === BARBARIAN_STEPS - 1 ? ' last' : ''}"></span>`
   ).join('');
   const barbInfo = $('#barbInfo');
-  if (barbInfo) barbInfo.textContent = `あと ${BARBARIAN_STEPS - step} ターン`;
+  if (barbInfo) barbInfo.textContent = t('turnsRemaining', { n: BARBARIAN_STEPS - step });
 }
 
 function scheduleBotTurn(delay = 650) {
@@ -1887,7 +2430,7 @@ function scheduleBotTurn(delay = 650) {
   botWatchdog = setTimeout(() => {
     if (version === gameVersion && state.turn === expectedPlayer && !state.gameOver && !state.resolvingSeven && !blockingModalOpen()) {
       state.botBusy = false;
-      toast(`${state.players[expectedPlayer].name}の処理を復旧しました`);
+      toast(t('botRecovered', { name: state.players[expectedPlayer].name }));
       advanceTurn();
     }
   }, 5000);
@@ -1949,7 +2492,7 @@ function continueBotTurn(playerIndex, version) {
     checkWin(playerIndex);
   } catch (error) {
     console.error('NPC action failed', error);
-    toast(`${state.players[playerIndex].name}は行動を終了しました`);
+    toast(t('botEndedActions', { name: state.players[playerIndex].name }));
   } finally {
     state.botBusy = false;
     if (!state.gameOver) botTimer = setTimeout(() => {
@@ -1984,12 +2527,12 @@ function maybeProposeNpcTrade(player, onDone) {
 function showNpcProposalDialog(player, giveRes, wantRes, onDone) {
   const npc = state.players[player];
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>${npc.name}からの交換提案</h2>
-    <p class="trade-summary"><b>${npc.name}</b> が <b>1 ${RESOURCES[giveRes].icon}${RESOURCES[giveRes].name}</b> を渡すかわりに、あなたの <b>1 ${RESOURCES[wantRes].icon}${RESOURCES[wantRes].name}</b> をほしがっています。</p>
+  $('#modalContent').innerHTML = `<h2>${t('npcProposalTitle', { name: npc.name })}</h2>
+    <p class="trade-summary">${t('npcProposalBody', { name: npc.name, give: `<b>1 ${RESOURCES[giveRes].icon}${RESOURCES[giveRes].name}</b>`, want: `<b>1 ${RESOURCES[wantRes].icon}${RESOURCES[wantRes].name}</b>` })}</p>
     ${handSummaryHtml()}
     <div class="proposal-actions">
-      <button class="trade-accept-btn" id="acceptProposalBtn">交換に応じる</button>
-      <button class="trade-reject-btn" id="rejectProposalBtn">断る</button>
+      <button class="trade-accept-btn" id="acceptProposalBtn">${t('acceptTrade')}</button>
+      <button class="trade-reject-btn" id="rejectProposalBtn">${t('declineTrade')}</button>
     </div>`;
   $('#modal').showModal();
   const finish = (accepted) => {
@@ -1997,9 +2540,9 @@ function showNpcProposalDialog(player, giveRes, wantRes, onDone) {
     $('#modalClose').hidden = false;
     if (accepted) {
       completeNpcTrade(player, { [wantRes]: 1 }, { [giveRes]: 1 });
-      toast(`${npc.name}と交換しました`);
+      toast(t('tradedWithNpc', { name: npc.name }));
     } else {
-      toast(`${npc.name}の提案を断りました`);
+      toast(t('rejectedNpcOffer', { name: npc.name }));
     }
     onDone();
   };
@@ -2108,7 +2651,7 @@ function runBotActions(player) {
       state.buildings[vertex].type = 'city';
       state.players[player].vp++;
       state.recentBotMoves.push({ kind: 'building', id: Number(vertex) });
-      messages.push('都市');
+      messages.push(t('itemCity'));
       continue;
     }
     const settlements = vertices.map((_, i) => i).filter(vertex => canSettle(vertex, player));
@@ -2119,7 +2662,7 @@ function runBotActions(player) {
       state.players[player].vp++;
       grantIslandDiscovery(vertex, player);
       state.recentBotMoves.push({ kind: 'building', id: Number(vertex) });
-      messages.push('開拓地');
+      messages.push(t('itemSettlement'));
       continue;
     }
     const roads = edges.map((_, i) => i).filter(i => state.roads[i] === undefined && !isSeaEdge(i) && roadConnected(i, player));
@@ -2128,7 +2671,7 @@ function runBotActions(player) {
       pay('road', player);
       state.roads[chosen] = player;
       state.recentBotMoves.push({ kind: 'road', id: Number(chosen) });
-      messages.push('街道');
+      messages.push(t('itemRoad'));
       continue;
     }
     if (state.expansion === 'seafarers' && hasPieceAvailable(player, 'ship')) {
@@ -2140,20 +2683,20 @@ function runBotActions(player) {
         pay('ship', player);
         state.ships[chosen] = player;
         state.recentBotMoves.push({ kind: 'ship', id: Number(chosen) });
-        messages.push('船');
+        messages.push(t('itemShip'));
         continue;
       }
     }
     if (rules.devBuy && state.devDeck.length && prepareCost(player, 'development')) {
       buyDevelopment(player);
-      messages.push('発展カード');
+      messages.push(t('itemDevCard'));
       continue;
     }
     break;
   }
   playBotDevelopment(player);
   updateAwards();
-  toast(messages.length ? `${state.players[player].name}：${messages.join('・')}を建設` : `${state.players[player].name}はターンを終了`);
+  toast(messages.length ? t('botBuilt', { name: state.players[player].name, items: messages.join(LANG === 'en' ? ', ' : '・') }) : t('botNoAction', { name: state.players[player].name }));
 }
 
 function buyDevelopment(player) {
@@ -2177,17 +2720,15 @@ function buyDevelopment(player) {
 }
 
 function showSageDialog(player, card1, card2) {
-  const names = { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占', victory: '勝利点' };
-  const descs = { knight: '盗賊を移動させ1枚奪う', roadBuilding: '街道を2本無料で建設', plenty: '好きな資源を2枚獲得', monopoly: '1種類を全員から独占', victory: '非公開の1勝利点' };
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>🔮 古の賢者：2枚から1枚を選ぶ</h2>
-    <p>引いた2枚のカードから1枚をキープ。もう1枚はデッキに戻ります。</p>
+  $('#modalContent').innerHTML = `<h2>🔮 ${t('sageDialogTitle')}</h2>
+    <p>${t('sageDialogBody')}</p>
     <div style="display:flex;gap:12px;margin-top:16px">
       <button class="sage-pick" data-sage="${card1}" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
-        <b style="display:block;margin-bottom:4px">✦ ${names[card1]}</b><small>${descs[card1]}</small>
+        <b style="display:block;margin-bottom:4px">✦ ${devCardName(card1)}</b><small>${devCardDescLong(card1)}</small>
       </button>
       <button class="sage-pick" data-sage="${card2}" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
-        <b style="display:block;margin-bottom:4px">✦ ${names[card2]}</b><small>${descs[card2]}</small>
+        <b style="display:block;margin-bottom:4px">✦ ${devCardName(card2)}</b><small>${devCardDescLong(card2)}</small>
       </button>
     </div>`;
   $('#modal').showModal();
@@ -2199,7 +2740,7 @@ function showSageDialog(player, card1, card2) {
     $('#modal').close();
     $('#modalClose').hidden = false;
     render();
-    toast(`${names[kept]}カードを選びました`);
+    toast(t('sageCardChosen', { label: devCardName(kept) }));
     checkWin(player);
   });
 }
@@ -2250,7 +2791,7 @@ function playDevelopment(player, card) {
       state.mode = 'road';
       updateAwards();
       render();
-      toast('無料で街道を2本置けます。盤上の黄色い街道を選んでください');
+      toast(t('freeRoadsPrompt'));
       checkWin(player);
       return true;
     }
@@ -2286,21 +2827,21 @@ function playDevelopment(player, card) {
 function showPlentyDialog() {
   const me = state.turn;
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>発見：資源を2枚選ぶ</h2><p>銀行から好きな資源を合計2枚受け取れます。</p>${handSummaryHtml(me)}<div class="discard-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<label>${data.icon} ${data.name}<input id="plenty-${resource}" type="number" min="0" max="2" value="0"></label>`).join('')}</div><button class="confirm-discard" id="confirmPlentyBtn">受け取る</button><button class="cancel-card-link" id="cancelPlentyBtn">↩ やっぱりやめる</button>`;
+  $('#modalContent').innerHTML = `<h2>${t('plentyDialogTitle')}</h2><p>${t('plentyDialogBody')}</p>${handSummaryHtml(me)}<div class="discard-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<label>${data.icon} ${data.name}<input id="plenty-${resource}" type="number" min="0" max="2" value="0"></label>`).join('')}</div><button class="confirm-discard" id="confirmPlentyBtn">${t('receive')}</button><button class="cancel-card-link" id="cancelPlentyBtn">↩ ${t('neverMind')}</button>`;
   $('#modal').showModal();
   $('#cancelPlentyBtn').onclick = cancelCardAction;
   $('#confirmPlentyBtn').onclick = () => {
     const amounts = Object.fromEntries(Object.keys(RESOURCES).map(resource => [resource, Math.max(0, Number($(`#plenty-${resource}`).value) || 0)]));
     const total = Object.values(amounts).reduce((sum, amount) => sum + amount, 0);
-    if (total !== 2) return toast('合計2枚を選んでください');
-    if (Object.entries(amounts).some(([resource, amount]) => amount > state.bank[resource])) return toast('銀行の在庫が足りません');
+    if (total !== 2) return toast(t('pickExactlyTwo'));
+    if (Object.entries(amounts).some(([resource, amount]) => amount > state.bank[resource])) return toast(t('bankOutOfStock'));
     Object.entries(amounts).forEach(([resource, amount]) => { state.players[me].resources[resource] += amount; state.bank[resource] -= amount; });
     clearCardAction();
     $('#modal').close();
     $('#modalClose').hidden = false;
     updateAwards();
     render();
-    toast('発見カードで資源を受け取りました');
+    toast(t('plentyReceived'));
     checkWin(me);
   };
 }
@@ -2308,7 +2849,7 @@ function showPlentyDialog() {
 function showMonopolyDialog() {
   const me = state.turn;
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>独占：資源を1種類選ぶ</h2><p>選んだ資源を全プレイヤーから集めます。</p>${handSummaryHtml(me)}<div class="monopoly-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<button class="monopoly-choice" data-monopoly="${resource}">${data.icon}<small>${data.name}</small></button>`).join('')}</div><button class="cancel-card-link" id="cancelMonopolyBtn">↩ やっぱりやめる</button>`;
+  $('#modalContent').innerHTML = `<h2>${t('monopolyDialogTitle')}</h2><p>${t('monopolyDialogBody')}</p>${handSummaryHtml(me)}<div class="monopoly-grid">${Object.entries(RESOURCES).map(([resource, data]) => `<button class="monopoly-choice" data-monopoly="${resource}">${data.icon}<small>${data.name}</small></button>`).join('')}</div><button class="cancel-card-link" id="cancelMonopolyBtn">↩ ${t('neverMind')}</button>`;
   $('#modal').showModal();
   $('#cancelMonopolyBtn').onclick = cancelCardAction;
   $$('[data-monopoly]').forEach(button => button.onclick = () => {
@@ -2325,7 +2866,7 @@ function showMonopolyDialog() {
     $('#modalClose').hidden = false;
     updateAwards();
     render();
-    toast(`独占！ ${RESOURCES[resource].name}を${taken}枚集めました`);
+    toast(t('monopolyCollected', { res: RESOURCES[resource].name, n: taken }));
     checkWin(me);
   });
 }
@@ -2420,21 +2961,21 @@ function sumRes(bundle) {
 
 function formatBundle(bundle) {
   const parts = Object.keys(RESOURCES).filter(key => bundle[key]).map(key => `${bundle[key]} ${RESOURCES[key].icon}`);
-  return parts.length ? parts.join(' ＋ ') : 'なし';
+  return parts.length ? parts.join(' ＋ ') : t('none');
 }
 
 function handSummaryHtml(player = 0) {
   const owner = state.players[player];
-  return `<div class="modal-hand"><span class="modal-hand-label">${owner.name}の手札</span><div class="modal-hand-list">${Object.entries(RESOURCES).map(([key, resource]) => `<span class="modal-hand-item${owner.resources[key] ? '' : ' zero'}">${resource.icon}<b>${owner.resources[key]}</b></span>`).join('')}</div></div>`;
+  return `<div class="modal-hand"><span class="modal-hand-label">${handOfLabel(owner.name)}</span><div class="modal-hand-list">${Object.entries(RESOURCES).map(([key, resource]) => `<span class="modal-hand-item${owner.resources[key] ? '' : ' zero'}">${resource.icon}<b>${owner.resources[key]}</b></span>`).join('')}</div></div>`;
 }
 
 // give = 人間が渡す（NPCが受け取る） / get = 人間がもらう（NPCが渡す）
 function npcTradeDecision(target, give, get) {
   const npc = state.players[target];
   const giveTotal = sumRes(give), getTotal = sumRes(get);
-  if (!npc || target === 0 || giveTotal < 1 || getTotal < 1) return { accept: false, score: -Infinity, reason: '条件が不正' };
+  if (!npc || target === 0 || giveTotal < 1 || getTotal < 1) return { accept: false, score: -Infinity, reason: t('reasonInvalid') };
   const short = Object.keys(RESOURCES).find(key => npc.resources[key] < (get[key] || 0));
-  if (short) return { accept: false, score: -Infinity, reason: `${RESOURCES[short].name}が足りない` };
+  if (short) return { accept: false, score: -Infinity, reason: t('reasonShort', { res: RESOURCES[short].name }) };
   let receiveValue = 0, giveValue = 0;
   Object.keys(RESOURCES).forEach(key => {
     if (give[key]) receiveValue += give[key] * (3 / (1 + npc.resources[key]) + npcResourceNeed(target, key));
@@ -2444,7 +2985,7 @@ function npcTradeDecision(target, give, get) {
   const fairQuantity = getTotal <= giveTotal * 1.5;
   // 最強(elite)は自分に有利な交換しか受けない（甘い交換を掴まされない）
   const accept = fairQuantity && score >= (botRules().elite ? 1.05 : .9);
-  return { accept, score, reason: accept ? '建設計画に合う' : fairQuantity ? '条件が見合わない' : '渡す枚数が多すぎる' };
+  return { accept, score, reason: accept ? t('reasonFits') : fairQuantity ? t('reasonMismatch') : t('reasonTooMuch') };
 }
 
 function completeNpcTrade(target, give, get, human = 0) {
@@ -2478,11 +3019,11 @@ function resetFlexTrade() {
 }
 
 function validatePlayerTrade(trade) {
-  if (state.phase !== 'play' || currentIsBot() || !state.rolled) return 'ダイスを振ったあとに交換できます';
-  if (!sumRes(trade.give) || !sumRes(trade.get)) return '渡す資源ともらう資源をそれぞれ選んでください';
-  if (Object.keys(RESOURCES).some(key => trade.give[key] && trade.get[key])) return '同じ資源を渡して受け取ることはできません';
+  if (state.phase !== 'play' || currentIsBot() || !state.rolled) return t('rollBeforeTrade');
+  if (!sumRes(trade.give) || !sumRes(trade.get)) return t('pickResourcesEach');
+  if (Object.keys(RESOURCES).some(key => trade.give[key] && trade.get[key])) return t('sameResourceTrade');
   const short = Object.keys(RESOURCES).find(key => state.players[state.turn].resources[key] < trade.give[key]);
-  if (short) return `${RESOURCES[short].name}が足りません`;
+  if (short) return t('resourceShort', { res: RESOURCES[short].name });
   return null;
 }
 
@@ -2499,7 +3040,7 @@ function executePlayerTrade() {
   const error = validatePlayerTrade(trade);
   if (error) return toast(error);
   const target = Number($('#playerTradeTarget').value);
-  if (!Number.isInteger(target) || !state.players[target] || target === state.turn) return toast('交換できる相手がいません');
+  if (!Number.isInteger(target) || !state.players[target] || target === state.turn) return toast(t('noTradeTarget'));
   if (state.players[target].bot) {
     showTradeResultDialog(trade, [{ target, ...npcTradeDecision(target, trade.give, trade.get) }]);
   } else {
@@ -2512,7 +3053,7 @@ function executePlayerTradeAll() {
   const error = validatePlayerTrade(trade);
   if (error) return toast(error);
   const opponents = allOpponents();
-  if (!opponents.length) return toast('交換できる相手がいません');
+  if (!opponents.length) return toast(t('noTradeTarget'));
   const decisions = opponents.filter(item => item.player.bot).map(item => ({ target: item.index, ...npcTradeDecision(item.index, trade.give, trade.get) }));
   const humanTargets = opponents.filter(item => !item.player.bot).map(item => item.index);
   showTradeResultDialog(trade, decisions, humanTargets);
@@ -2525,7 +3066,7 @@ function refreshTradeTargets() {
   const opponents = allOpponents();
   const previous = select.value;
   select.innerHTML = '';
-  opponents.forEach(item => select.add(new Option(`${item.player.name}${item.player.bot ? '' : '（人間）'}`, item.index)));
+  opponents.forEach(item => select.add(new Option(`${item.player.name}${item.player.bot ? '' : ` (${t('humanTag')})`}`, item.index)));
   if (opponents.some(item => String(item.index) === String(previous))) select.value = previous;
 }
 
@@ -2536,7 +3077,7 @@ function startHumanTradeProposal(target, trade) {
   render();
   if ($('#modal').open) $('#modal').close();
   $('#modalClose').hidden = false;
-  showPassScreen(state.players[target].name, `${state.players[proposer].name} さんから交換の提案があります`, () => {
+  showPassScreen(state.players[target].name, t('humanProposalIncoming', { name: state.players[proposer].name }), () => {
     showHumanTradeDecision(proposer, target, trade);
   }, state.players[target].color);
 }
@@ -2546,12 +3087,12 @@ function showHumanTradeDecision(proposer, target, trade) {
   const getText = formatBundle(trade.get);   // proposer wants → target gives
   const canAfford = Object.keys(RESOURCES).every(key => state.players[target].resources[key] >= (trade.get[key] || 0));
   $('#modalClose').hidden = true;
-  $('#modalContent').innerHTML = `<h2>${state.players[target].name}さんへの提案</h2>
-    <p class="trade-summary"><b>${state.players[proposer].name}</b> があなたに <b>${giveText}</b> を渡すかわりに、あなたの <b>${getText}</b> をほしがっています。</p>
+  $('#modalContent').innerHTML = `<h2>${t('humanProposalTitle', { name: state.players[target].name })}</h2>
+    <p class="trade-summary">${t('humanProposalBody', { name: state.players[proposer].name, give: `<b>${giveText}</b>`, get: `<b>${getText}</b>` })}</p>
     ${handSummaryHtml(target)}
     <div class="proposal-actions">
-      <button class="trade-accept-btn" id="humanAcceptBtn"${canAfford ? '' : ' disabled'}>${canAfford ? '交換する' : '資源が足りません'}</button>
-      <button class="trade-reject-btn" id="humanRejectBtn">断る</button>
+      <button class="trade-accept-btn" id="humanAcceptBtn"${canAfford ? '' : ' disabled'}>${canAfford ? t('doTrade') : t('resourceShort2')}</button>
+      <button class="trade-reject-btn" id="humanRejectBtn">${t('declineTrade')}</button>
     </div>`;
   $('#modal').showModal();
   const finish = (accepted) => {
@@ -2561,7 +3102,7 @@ function showHumanTradeDecision(proposer, target, trade) {
       const proposerAffords = Object.keys(RESOURCES).every(key => state.players[proposer].resources[key] >= (trade.give[key] || 0));
       if (accepted && proposerAffords) { completeNpcTrade(target, trade.give, trade.get, proposer); checkWin(proposer); }
     };
-    handBackToProposer(proposer, accepted ? `${state.players[target].name}さんと交換が成立しました！` : `${state.players[target].name}さんに断られました`, apply);
+    handBackToProposer(proposer, accepted ? t('humanTradeSucceeded', { name: state.players[target].name }) : t('humanTradeDeclined', { name: state.players[target].name }), apply);
   };
   $('#humanAcceptBtn').onclick = () => { if (canAfford) finish(true); };
   $('#humanRejectBtn').onclick = () => finish(false);
@@ -2569,7 +3110,7 @@ function showHumanTradeDecision(proposer, target, trade) {
 
 // Return the device to the proposer; reveal their hand only after they confirm.
 function handBackToProposer(proposer, message, beforeReveal) {
-  showPassScreen(state.players[proposer].name, '手番に戻ります。端末を受け取ってください。', () => {
+  showPassScreen(state.players[proposer].name, t('backToYourTurn'), () => {
     if (beforeReveal) beforeReveal();
     state.awaitingPass = false;
     render();
@@ -2587,28 +3128,28 @@ function showTradeResultDialog(trade, decisions, humanTargets = []) {
     const player = state.players[target];
     return `<div class="trade-result-row human">
       <span class="avatar" style="background:${player.color}">${player.name[0]}</span>
-      <span class="trade-result-info"><b>${player.name}</b><small>人間プレイヤー · 本人に確認します</small></span>
-      <button class="trade-accept-btn" data-human-trade="${target}">本人に渡す</button>
+      <span class="trade-result-info"><b>${player.name}</b><small>${t('humanPlayerConfirm')}</small></span>
+      <button class="trade-accept-btn" data-human-trade="${target}">${t('handToThem')}</button>
     </div>`;
   }).join('');
-  $('#modalContent').innerHTML = `<h2>提案への返事</h2>
-    <p class="trade-summary">あなたが渡す <b>${giveText}</b> → もらう <b>${getText}</b></p>
+  $('#modalContent').innerHTML = `<h2>${t('proposalReplyTitle')}</h2>
+    <p class="trade-summary">${t('proposalReplyBody', { give: `<b>${giveText}</b>`, get: `<b>${getText}</b>` })}</p>
     ${handSummaryHtml(human)}
     <div class="trade-results">${decisions.map(item => {
       const player = state.players[item.target];
       return `<div class="trade-result-row ${item.accept ? 'ok' : 'ng'}">
         <span class="avatar" style="background:${player.color}">${player.name[0]}</span>
-        <span class="trade-result-info"><b>${player.name}</b><small>${item.accept ? '✓ OK！交換できます' : '✗ ' + item.reason}</small></span>
-        ${item.accept ? `<button class="trade-accept-btn" data-trade-with="${item.target}">交換する</button>` : '<span class="trade-ng-tag">拒否</span>'}
+        <span class="trade-result-info"><b>${player.name}</b><small>${item.accept ? `✓ ${t('okCanTrade')}` : '✗ ' + item.reason}</small></span>
+        ${item.accept ? `<button class="trade-accept-btn" data-trade-with="${item.target}">${t('doTrade')}</button>` : `<span class="trade-ng-tag">${t('declined')}</span>`}
       </div>`;
     }).join('')}${humanRows}</div>
-    ${(accepted.length || humanTargets.length) ? '<p class="trade-hint-modal">交換したい相手の「交換する」または「本人に渡す」を押してください。</p>' : '<p class="trade-none">承認してくれる相手がいませんでした。</p>'}`;
+    ${(accepted.length || humanTargets.length) ? `<p class="trade-hint-modal">${t('tradeHintModal')}</p>` : `<p class="trade-none">${t('noOneAccepted')}</p>`}`;
   $('#modal').showModal();
   $$('[data-trade-with]').forEach(button => button.onclick = () => {
     const target = Number(button.dataset.tradeWith);
     completeNpcTrade(target, trade.give, trade.get, human);
     $('#modal').close();
-    toast(`${state.players[target].name}と交換が成立しました！`);
+    toast(t('tradeSucceeded', { name: state.players[target].name }));
     checkWin(human);
   });
   $$('[data-human-trade]').forEach(button => button.onclick = () => {
@@ -2650,17 +3191,17 @@ function showWinner(player) {
   $('#modalClose').hidden = true;
   $('#modalContent').innerHTML = `<div class="result-screen">
     <div class="trophy">🏆</div>
-    <h2>${name} の勝利！</h2>
-    <p class="result-sub">${totalVP(player)}勝利点を獲得し、島の開拓者になりました。</p>
+    <h2>${winTitleText(name)}</h2>
+    <p class="result-sub">${t('winSub', { n: totalVP(player) })}</p>
     <div class="result-table">
-      <div class="result-head"><span>順位</span><span>プレイヤー</span><span>勝利点</span></div>
+      <div class="result-head"><span>${t('rankLabel')}</span><span>${t('playerLabel')}</span><span>${t('victoryPointsLabel')}</span></div>
       ${ranking.map((row, rank) => `<div class="result-row ${row.index === player ? 'winner-row' : ''}">
         <span class="result-rank">${medals[rank]}</span>
-        <span class="result-player"><span class="avatar" style="background:${state.players[row.index].color}">${row.name[0]}</span><span class="result-name"><b>${row.name}${row.index === 0 ? ' (YOU)' : ''}</b><small>開拓地${row.settlements}・都市${row.cities}・道${row.roads}・騎士${row.knights}${row.longest ? '・🛣最長' : ''}${row.army ? '・⚔最大騎士' : ''}</small></span></span>
+        <span class="result-player"><span class="avatar" style="background:${state.players[row.index].color}">${row.name[0]}</span><span class="result-name"><b>${row.name}${row.index === 0 ? ' (YOU)' : ''}</b><small>${t('resultLine', { settlements: row.settlements, cities: row.cities, roads: row.roads, knights: row.knights })}${row.longest ? `${LANG === 'en' ? ', ' : '・'}🛣${t('longestRoadShort')}` : ''}${row.army ? `${LANG === 'en' ? ', ' : '・'}⚔${t('largestArmyShort')}` : ''}</small></span></span>
         <span class="result-vp">${row.vp}</span>
       </div>`).join('')}
     </div>
-    <button class="result-again" onclick="document.getElementById('modalClose').hidden=false;modal.close();newGame()">もう一度遊ぶ</button>
+    <button class="result-again" onclick="document.getElementById('modalClose').hidden=false;modal.close();newGame()">${t('playAgain')}</button>
   </div>`;
   $('#modal').showModal();
   soundEffect('build');
@@ -2676,22 +3217,21 @@ function toast(message) {
 
 $$('.build-card').forEach(button => button.onclick = () => {
   if (button.dataset.build === 'development') {
-    if (state.phase !== 'play' || currentIsBot() || !state.rolled || !buyDevelopment(state.turn)) return toast('発展カードを購入できません');
-    toast('発展カードを1枚購入しました');
+    if (state.phase !== 'play' || currentIsBot() || !state.rolled || !buyDevelopment(state.turn)) return toast(t('cantBuyDev'));
+    toast(t('devBought'));
     render();
     checkWin(state.turn);
     return;
   }
   state.mode = button.dataset.build;
-  toast(button.dataset.build === 'road' ? '盤上の黄色い街道を選択' : '盤上の黄色い地点を選択');
+  toast(button.dataset.build === 'road' ? t('pickYellowRoad') : t('pickYellowSpot'));
   render();
 });
 $('#playDevBtn').onclick = () => {
   if (currentIsBot()) return;
   const card = state.players[state.turn].dev.find(item => item !== 'victory');
-  if (!card) return toast('使える発展カードがありません');
-  const names = { knight: '騎士', roadBuilding: '街道建設', plenty: '発見', monopoly: '独占' };
-  if (playDevelopment(state.turn, card)) toast(`${names[card]}カードを使いました`);
+  if (!card) return toast(t('noPlayableDev'));
+  if (playDevelopment(state.turn, card)) toast(t('devCardUsed', { label: devCardName(card) }));
 };
 $('#moveShipBtn').onclick = () => { if (state.mode === 'moveShip') cancelMoveShip(); else beginMoveShip(); };
 $('#rollBtn').onclick = primaryAction;
@@ -2732,74 +3272,85 @@ function updateStartPlayerFields() {
   if (extra) extra.hidden = humanCount < 2;
   const npc = Math.max(0, 4 - humanCount);
   const hint = $('#npcHint');
-  if (hint) hint.textContent = npc > 0 ? `NPC ×${npc} が参加します（合計4人）` : '人間4人で対戦します（NPCなし）';
+  if (hint) hint.textContent = npc > 0 ? t('npcJoining', { n: npc }) : t('allHuman');
 }
 $$('input[name="humanCount"]').forEach(input => input.addEventListener('change', updateStartPlayerFields));
 updateStartPlayerFields();
 function seafarersRulesHtml() {
   return `<div class="rules-seafarers">
-    <p class="rules-expansion-title">🌊 拡張：航海者たち</p>
-    <p><b>⛵ 船：</b>コストは🌲＋🐑。海に面した辺に置けます。自分の<b>沿岸の開拓地・都市</b>か、つながっている<b>船の先端</b>から伸ばします。街道と船は開拓地・都市を経由してつながり、合わせて<b>最長交易路</b>になります。</p>
-    <p><b>🚢 船の移動：</b>1ターンに1回、航路の<b>先端の船</b>を1隻だけ別の場所へ動かせます（そのターンに置いた船・移動済みの船は動かせません）。「⛵ 船を移動」ボタンから行います。</p>
-    <p><b>✨ 金鉱：</b>金鉱に接する開拓地・都市の所有者は、その数字が出ると<b>好きな資源</b>を選んで受け取れます（開拓地1枚・都市2枚）。</p>
-    <p><b>🏝 新しい島の発見：</b>母島以外の島に<b>最初に開拓地</b>を置いた人は<b>＋${ISLAND_BONUS_VP}点</b>。船で海を渡ってたどり着きましょう。</p>
-    <p><b>🏴‍☠️ 海賊：</b>海では盗賊のかわりに<b>海賊</b>が動きます。7を出すか騎士を使うと、盗賊（陸）か海賊（海）のどちらを動かすか選べます。海賊のいる海域では船を建設できず、その海域に面した相手から資源を1枚奪えます。</p>
+    <p class="rules-expansion-title">🌊 ${t('rulesSeafarersTitle')}</p>
+    <p>${t('rulesSeafarersShip')}</p>
+    <p>${t('rulesSeafarersMoveShip')}</p>
+    <p>${t('rulesSeafarersGold')}</p>
+    <p>${t('rulesSeafarersIsland', { n: ISLAND_BONUS_VP })}</p>
+    <p>${t('rulesSeafarersPirate')}</p>
   </div>`;
 }
 function heroesRulesHtml() {
   const mine = state?.players?.[0]?.hero ? HEROES.find(h => h.id === state.players[0].hero) : null;
   return `<div class="rules-seafarers">
-    <p class="rules-expansion-title">✦ 拡張：英雄の伝説（yuji オリジナル）</p>
-    <p>ゲーム開始時、各プレイヤーに<b>固有の英雄</b>が1人ランダムで配られます。英雄の能力は<b>ゲーム中ずっと自動で発動</b>する常時効果です。プレイヤー名の横に英雄バッジが表示されます。</p>
-    ${mine ? `<p class="rules-my-hero">あなたの英雄：<b>${mine.icon} ${mine.name}</b><br>${mine.desc}</p>` : ''}
+    <p class="rules-expansion-title">✦ ${t('rulesHeroesTitle')}</p>
+    <p>${t('rulesHeroesIntro')}</p>
+    ${mine ? `<p class="rules-my-hero">${t('rulesHeroesMine', { icon: mine.icon, name: mine.name, desc: mine.desc })}</p>` : ''}
     <ul class="rules-hero-list">
       ${HEROES.map(h => `<li><b>${h.icon} ${h.name}</b>：${h.desc}</li>`).join('')}
     </ul>
-    <p><small>※ 英雄能力は最初に配られた1つで固定。交換や変更はできません。</small></p>
+    <p><small>${t('rulesHeroesNote')}</small></p>
   </div>`;
 }
 function barbariansRulesHtml() {
   return `<div class="rules-seafarers">
-    <p class="rules-expansion-title">🏴 拡張：蛮族の来襲（シティ＆ナイト風 簡易版）</p>
-    <p><b>⏳ 侵攻のタイミング：</b>手番が進むごとに蛮族船が前進し、<b>${BARBARIAN_STEPS}ターンごと</b>に上陸して全プレイヤーの<b>都市</b>を襲います。サイドバーの蛮族トラックで残りターンを確認できます。</p>
-    <p><b>⚔ 防衛の判定：</b>上陸時、<b>全員が使った騎士カードの合計</b>と、<b>盤上の都市の合計数</b>を比べます。</p>
-    <p><b>✅ 騎士 ≧ 都市 → 撃退成功：</b>勝利点が最も高いプレイヤーが<b>発展カードを1枚</b>もらえます。</p>
-    <p><b>❌ 騎士 ＜ 都市 → 防衛失敗：</b>そのラウンドで<b>騎士を1枚も使っていないプレイヤー</b>の都市が1つ開拓地に格下げされます（−1点）。</p>
-    <p><small>※ ポイント：騎士カードは盗賊対策だけでなく<b>都市を守る盾</b>にもなります。都市を増やすほど蛮族に狙われやすいので、騎士とのバランスが大切です。都市が1つも無いときは被害ゼロ。</small></p>
+    <p class="rules-expansion-title">🏴 ${t('rulesBarbariansTitle')}</p>
+    <p>${t('rulesBarbariansTiming', { n: BARBARIAN_STEPS })}</p>
+    <p>${t('rulesBarbariansJudge')}</p>
+    <p>${t('rulesBarbariansWin')}</p>
+    <p>${t('rulesBarbariansLose')}</p>
+    <p><small>${t('rulesBarbariansNote')}</small></p>
   </div>`;
 }
 $('#rulesBtn').onclick = () => {
-  $('#modalContent').innerHTML = `<h2>遊び方</h2><div class="rules-list">
-    <p><b>🎯 目的：</b>最初に<b>10勝利点</b>に到達したプレイヤーの勝ちです。開拓地は1点、都市は2点。さらに最長交易路・最大騎士力・勝利点カードでも点が入ります。</p>
-    <p><b>🏝 初期配置：</b>全員が開拓地と街道を2組ずつ、往復順（あなた→他3人→他3人→あなた）に置きます。2個目の開拓地の周囲のタイルから初期資源を受け取ります。</p>
-    <p><b>🎲 資源の産出：</b>手番では必ず最初にダイスを振ります。出た目の数字を持つタイルに接する開拓地（1枚）・都市（2枚）の所有者が資源を得ます。<b>ダイスを振るまで建設・交換・発展カードは使えません。</b></p>
-    <p><b>🔨 建設コスト：</b>街道＝🌲🧱／開拓地＝🌲🧱🌾🐑／都市（開拓地を発展）＝🌾2 ⛏3／発展カード＝🌾🐑⛏。開拓地は最大5個・都市は最大4個・街道は最大15本まで。開拓地を都市にすると開拓地の枠が空きます。</p>
-    <p><b>🃏 発展カード：</b>引いたターンは使えず、<b>次の自分の手番から・1ターンに1枚だけ</b>使えます。
-      <br>・<b>騎士</b>＝盗賊を好きな土地へ動かして1枚奪う（置く前に確定ボタンで確認）
-      <br>・<b>街道建設</b>＝無料の街道を2本、自分で選んで置く
-      <br>・<b>発見</b>＝銀行から好きな資源を2枚もらう
-      <br>・<b>独占</b>＝資源を1種類選び全員から集める
-      <br>・<b>勝利点</b>＝隠したまま自動で1点（自分だけ見える）
-      <br>騎士を3枚以上使うと<b>最大騎士力＋2点</b>。</p>
-    <p><b>⚓ 港と交換：</b>銀行とは通常4:1で交換。港に開拓地・都市があると<b>3:1</b>（どの資源でも）や<b>2:1</b>（指定資源）になります。盤上の港は点線でどのマスと繋がるか示され、保有中の港は銀行パネルに表示されます。手番中は他プレイヤーへ直接交換も提案できます。</p>
-    <p><b>🦹 7と盗賊：</b>7が出ると手札8枚以上の人は半分を捨てます。振った人は盗賊を動かし、その土地に接する相手から1枚奪います。盗賊のいる土地は資源を産出しません。</p>
-    <p><b>🛣 最長交易路：</b>連続5本以上の街道${state.expansion === 'seafarers' ? '・船' : ''}を最も長く繋いだ人が<b>＋2点</b>。</p>
+  $('#modalContent').innerHTML = `<h2>${t('howToPlay')}</h2><div class="rules-list">
+    <p>${t('rulesGoal')}</p>
+    <p>${t('rulesSetup')}</p>
+    <p>${t('rulesProduction')}</p>
+    <p>${t('rulesBuildCost')}</p>
+    <p>${t('rulesDevIntro')}
+      <br>${t('rulesDevKnight')}
+      <br>${t('rulesDevRoadBuilding')}
+      <br>${t('rulesDevPlenty')}
+      <br>${t('rulesDevMonopoly')}
+      <br>${t('rulesDevVictory')}
+      <br>${t('rulesLargestArmy')}</p>
+    <p>${t('rulesHarbors')}</p>
+    <p>${t('rulesSeven')}</p>
+    <p>${t('rulesLongestRoad', { ships: state.expansion === 'seafarers' ? t('rulesLongestRoadShips') : '' })}</p>
     ${state.expansion === 'seafarers' ? seafarersRulesHtml() : ''}
     ${gameConfig.expansionHeroes ? heroesRulesHtml() : ''}
     ${gameConfig.expansionBarbarians ? barbariansRulesHtml() : ''}
-    <p><b>🤖 NPCの強さ：</b>開始画面で「やさしい／ふつう／強い」を選べます。強いほど街道を賢く伸ばし、発展カードを積極的に使います${state.expansion === 'seafarers' ? '（船で新しい島も目指します）' : ''}。</p>
-    <p><b>🔒 勝利点の表示：</b>あなたの合計点だけが表示され、他プレイヤーの点数は伏せられます（ゲーム終了時に公開）。</p>
+    <p>${t('rulesNpcStrength', { sailing: state.expansion === 'seafarers' ? t('rulesNpcSailing') : '' })}</p>
+    <p>${t('rulesVpVisibility')}</p>
   </div>`;
   $('#modal').showModal();
 };
 $('#modalClose').onclick = () => $('#modal').close();
 
-Object.entries(RESOURCES).forEach(([key, resource]) => {
-  $('#tradeGive').add(new Option(`${resource.icon} ${resource.name}`, key));
-  $('#tradeGet').add(new Option(`1 ${resource.icon}`, key));
-});
-const flexStepper = (side, key) => `<span class="ft-stepper"><button type="button" class="ft-step" data-side="${side}" data-res="${key}" data-delta="-1" aria-label="減らす">−</button><b id="flex${side === 'give' ? 'Give' : 'Get'}-${key}">0</b><button type="button" class="ft-step" data-side="${side}" data-res="${key}" data-delta="1" aria-label="増やす">＋</button></span>`;
-$('#flexTrade').innerHTML = `<div class="flex-trade-head"><span>資源</span><span class="head-give">渡す</span><span class="head-get">もらう</span></div>` + Object.entries(RESOURCES).map(([key, resource]) => `<div class="flex-trade-row"><span class="ft-res">${resource.icon} ${resource.name}</span>${flexStepper('give', key)}${flexStepper('get', key)}</div>`).join('');
+function renderBankTradeOptions() {
+  const give = $('#tradeGive'), get = $('#tradeGet');
+  const savedGive = give.value, savedGet = get.value;
+  give.innerHTML = ''; get.innerHTML = '';
+  Object.entries(RESOURCES).forEach(([key, resource]) => {
+    give.add(new Option(`${resource.icon} ${resource.name}`, key));
+    get.add(new Option(`1 ${resource.icon}`, key));
+  });
+  if (savedGive) give.value = savedGive;
+  get.value = savedGet || Object.keys(RESOURCES)[1];
+}
+renderBankTradeOptions();
+const flexStepper = (side, key) => `<span class="ft-stepper"><button type="button" class="ft-step" data-side="${side}" data-res="${key}" data-delta="-1" aria-label="${t('decrease')}">−</button><b id="flex${side === 'give' ? 'Give' : 'Get'}-${key}">0</b><button type="button" class="ft-step" data-side="${side}" data-res="${key}" data-delta="1" aria-label="${t('increase')}">＋</button></span>`;
+function renderFlexTrade() {
+  $('#flexTrade').innerHTML = `<div class="flex-trade-head"><span>${t('resourceLabel')}</span><span class="head-give">${t('giveLabel')}</span><span class="head-get">${t('getLabel')}</span></div>` + Object.entries(RESOURCES).map(([key, resource]) => `<div class="flex-trade-row"><span class="ft-res">${resource.icon} ${resource.name}</span>${flexStepper('give', key)}${flexStepper('get', key)}</div>`).join('');
+}
+renderFlexTrade();
 $('#flexTrade').onclick = event => {
   const button = event.target.closest('.ft-step');
   if (!button) return;
@@ -2808,19 +3359,19 @@ $('#flexTrade').onclick = event => {
 };
 $('#tradeGet').selectedIndex = 1;
 $('#tradeBtn').onclick = () => {
-  if (state.phase !== 'play' || currentIsBot() || !state.rolled) return toast('ダイスを振ったあとに交換できます');
+  if (state.phase !== 'play' || currentIsBot() || !state.rolled) return toast(t('rollBeforeTrade'));
   const give = $('#tradeGive').value;
   const get = $('#tradeGet').value;
   const player = state.players[state.turn];
-  if (give === get) return toast('違う資源を選んでください');
+  if (give === get) return toast(t('pickDifferentResource'));
   const rate = maritimeRate(state.turn, give);
-  if (player.resources[give] < rate) return toast(`${RESOURCES[give].name}が${rate}枚必要です`);
-  if (state.bank[get] < 1) return toast(`銀行に${RESOURCES[get].name}がありません`);
+  if (player.resources[give] < rate) return toast(t('needNMore', { res: RESOURCES[give].name, rate }));
+  if (state.bank[get] < 1) return toast(t('bankOutOfRes', { res: RESOURCES[get].name }));
   player.resources[give] -= rate;
   state.bank[give] += rate;
   player.resources[get]++;
   state.bank[get]--;
-  toast('銀行と交換しました');
+  toast(t('bankTraded'));
   soundEffect('trade');
   render();
 };
@@ -2829,6 +3380,7 @@ $('#zoomIn').onclick = () => { scale = Math.min(1.25, scale + .1); $('#board').s
 $('#zoomOut').onclick = () => { scale = Math.max(.65, scale - .1); $('#board').style.transform = `scale(${scale})`; };
 $('#soundBtn').onclick = () => setAudioEnabled(!audioEnabled);
 $('#bgmBtn').onclick = cycleBgm;
+$$('.lang-btn').forEach(btn => btn.onclick = () => setLang(btn.dataset.lang));
 $('#fullscreenBtn').onclick = () => {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.();
@@ -2836,15 +3388,15 @@ $('#fullscreenBtn').onclick = () => {
 $('#startGameBtn').onclick = () => {
   const name = $('#playerNameInput').value.trim();
   const humanCount = Math.min(4, Math.max(1, Number($('input[name="humanCount"]:checked')?.value) || 1));
-  const humanNames = [name || 'あなた'];
+  const humanNames = [name || t('you')];
   for (let i = 2; i <= humanCount; i++) {
-    humanNames.push(($(`#humanName${i}`)?.value || '').trim() || `プレイヤー${i}`);
+    humanNames.push(($(`#humanName${i}`)?.value || '').trim() || t('playerN', { n: i }));
   }
   const expansionCheck = $('#expansionSeafarers');
   const heroesCheck = $('#expansionHeroes');
   const barbsCheck = $('#expansionBarbarians');
   gameConfig = {
-    playerName: name || 'あなた',
+    playerName: name || t('you'),
     humanCount,
     humanNames,
     npcCount: Math.max(0, 4 - humanCount),
@@ -2875,10 +3427,12 @@ function showExpansionIntro() {
   if (gameConfig.expansionHeroes) parts.push(heroesRulesHtml());
   if (gameConfig.expansionBarbarians) parts.push(barbariansRulesHtml());
   if (!parts.length) return;
-  $('#modalContent').innerHTML = `<h2>拡張ルールの遊び方</h2>
-    <p style="color:#74817c;font-size:13px;margin:-4px 0 6px">選んだ拡張のルールです。「遊び方」ボタンからいつでも見直せます。</p>
+  $('#modalContent').innerHTML = `<h2>${t('expansionIntroTitle')}</h2>
+    <p style="color:#74817c;font-size:13px;margin:-4px 0 6px">${t('expansionIntroSub')}</p>
     <div class="rules-list">${parts.join('')}</div>`;
   $('#modal').showModal();
 }
 
+applyI18n();
+$$('.lang-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.lang === LANG));
 newGame();

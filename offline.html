@@ -11,79 +11,83 @@
   <link rel="stylesheet" href="trade.css" />
 </head>
 <body>
+  <div class="lang-switch" id="langSwitch">
+    <button class="lang-btn active" id="langJa" data-lang="ja">日本語</button>
+    <button class="lang-btn" id="langEn" data-lang="en">English</button>
+  </div>
   <div class="start-screen" id="startScreen">
     <div class="start-card">
       <span class="start-kicker">ISLANDS & ROADS</span>
-      <h1>島へ出発しよう</h1>
-      <p>プレイヤー設定を決めてゲームを始めます。</p>
-      <label class="start-field">あなたの名前
-        <input id="playerNameInput" maxlength="12" value="あなた" placeholder="名前を入力" />
+      <h1 data-ja="島へ出発しよう" data-en="Set Sail for the Isle">島へ出発しよう</h1>
+      <p data-ja="プレイヤー設定を決めてゲームを始めます。" data-en="Choose your settings and start the game.">プレイヤー設定を決めてゲームを始めます。</p>
+      <label class="start-field"><span data-ja="あなたの名前" data-en="Your name">あなたの名前</span>
+        <input id="playerNameInput" maxlength="12" data-i18n-attr="placeholder" data-ja="名前を入力" data-en="Enter your name" placeholder="名前を入力" />
       </label>
       <fieldset class="start-options player-count-options">
-        <legend>人間プレイヤーの人数（あなたを含む）</legend>
-        <label><input type="radio" name="humanCount" value="1" checked><span><b>1人</b><small>あなた＋NPC</small></span></label>
-        <label><input type="radio" name="humanCount" value="2"><span><b>2人</b><small>友だちと2人＋NPC</small></span></label>
-        <label><input type="radio" name="humanCount" value="3"><span><b>3人</b><small>3人＋NPC</small></span></label>
-        <label><input type="radio" name="humanCount" value="4"><span><b>4人</b><small>4人で対戦</small></span></label>
+        <legend data-ja="人間プレイヤーの人数（あなたを含む）" data-en="Number of human players (including you)">人間プレイヤーの人数（あなたを含む）</legend>
+        <label><input type="radio" name="humanCount" value="1" checked><span><b data-ja="1人" data-en="1 player">1人</b><small data-ja="あなた＋NPC" data-en="You + NPCs">あなた＋NPC</small></span></label>
+        <label><input type="radio" name="humanCount" value="2"><span><b data-ja="2人" data-en="2 players">2人</b><small data-ja="友だちと2人＋NPC" data-en="You + a friend + NPCs">友だちと2人＋NPC</small></span></label>
+        <label><input type="radio" name="humanCount" value="3"><span><b data-ja="3人" data-en="3 players">3人</b><small data-ja="3人＋NPC" data-en="3 players + NPCs">3人＋NPC</small></span></label>
+        <label><input type="radio" name="humanCount" value="4"><span><b data-ja="4人" data-en="4 players">4人</b><small data-ja="4人で対戦" data-en="4 human players">4人で対戦</small></span></label>
       </fieldset>
       <div class="extra-names" id="extraNames" hidden>
-        <label class="start-field">プレイヤー2の名前<input id="humanName2" maxlength="12" placeholder="プレイヤー2" /></label>
-        <label class="start-field">プレイヤー3の名前<input id="humanName3" maxlength="12" placeholder="プレイヤー3" /></label>
-        <label class="start-field">プレイヤー4の名前<input id="humanName4" maxlength="12" placeholder="プレイヤー4" /></label>
+        <label class="start-field"><span data-ja="プレイヤー2の名前" data-en="Player 2 name">プレイヤー2の名前</span><input id="humanName2" maxlength="12" data-i18n-attr="placeholder" data-ja="プレイヤー2" data-en="Player 2" placeholder="プレイヤー2" /></label>
+        <label class="start-field"><span data-ja="プレイヤー3の名前" data-en="Player 3 name">プレイヤー3の名前</span><input id="humanName3" maxlength="12" data-i18n-attr="placeholder" data-ja="プレイヤー3" data-en="Player 3" placeholder="プレイヤー3" /></label>
+        <label class="start-field"><span data-ja="プレイヤー4の名前" data-en="Player 4 name">プレイヤー4の名前</span><input id="humanName4" maxlength="12" data-i18n-attr="placeholder" data-ja="プレイヤー4" data-en="Player 4" placeholder="プレイヤー4" /></label>
       </div>
       <p class="npc-hint" id="npcHint">NPC ×3 が参加します（合計4人）</p>
       <fieldset class="start-options">
-        <legend>盤面</legend>
-        <label><input type="radio" name="boardMode" value="default" checked><span><b>デフォルト</b><small>毎回同じ、遊びやすい配置</small></span></label>
-        <label><input type="radio" name="boardMode" value="random"><span><b>ランダム</b><small>土地と数字が毎回変わる</small></span></label>
+        <legend data-ja="盤面" data-en="Board">盤面</legend>
+        <label><input type="radio" name="boardMode" value="default" checked><span><b data-ja="デフォルト" data-en="Default">デフォルト</b><small data-ja="毎回同じ、遊びやすい配置" data-en="Same friendly layout every time">毎回同じ、遊びやすい配置</small></span></label>
+        <label><input type="radio" name="boardMode" value="random"><span><b data-ja="ランダム" data-en="Random">ランダム</b><small data-ja="土地と数字が毎回変わる" data-en="Terrain and numbers change each game">土地と数字が毎回変わる</small></span></label>
       </fieldset>
       <fieldset class="start-options board-size-options">
-        <legend>盤面の大きさ</legend>
-        <label><input type="radio" name="boardSize" value="standard" checked><span><b>標準</b><small>19マス・本家サイズ</small></span></label>
-        <label><input type="radio" name="boardSize" value="large"><span><b>大型</b><small>31マス・やや長期戦</small></span></label>
-        <label><input type="radio" name="boardSize" value="huge"><span><b>巨大</b><small>37マス・長期戦／高得点向き</small></span></label>
+        <legend data-ja="盤面の大きさ" data-en="Board size">盤面の大きさ</legend>
+        <label><input type="radio" name="boardSize" value="standard" checked><span><b data-ja="標準" data-en="Standard">標準</b><small data-ja="19マス・本家サイズ" data-en="19 tiles · classic size">19マス・本家サイズ</small></span></label>
+        <label><input type="radio" name="boardSize" value="large"><span><b data-ja="大型" data-en="Large">大型</b><small data-ja="31マス・やや長期戦" data-en="31 tiles · a longer game">31マス・やや長期戦</small></span></label>
+        <label><input type="radio" name="boardSize" value="huge"><span><b data-ja="巨大" data-en="Huge">巨大</b><small data-ja="37マス・長期戦／高得点向き" data-en="37 tiles · long games / high scores">37マス・長期戦／高得点向き</small></span></label>
       </fieldset>
-      <p class="npc-hint" id="boardSizeHint">大型・巨大は配置がランダムになります（デフォルト配置は標準のみ）。勝利点は上げると良いバランスです。</p>
+      <p class="npc-hint" id="boardSizeHint" data-ja="大型・巨大は配置がランダムになります（デフォルト配置は標準のみ）。勝利点は上げると良いバランスです。" data-en="Large and Huge always use random layouts (the default fixed layout is standard-only). Raising the victory target gives a better pace on bigger boards.">大型・巨大は配置がランダムになります（デフォルト配置は標準のみ）。勝利点は上げると良いバランスです。</p>
       <fieldset class="start-options">
-        <legend>NPCの強さ</legend>
-        <label><input type="radio" name="difficulty" value="easy"><span><b>やさしい</b><small>バランスよく建設する初心者向け</small></span></label>
-        <label><input type="radio" name="difficulty" value="normal" checked><span><b>ふつう</b><small>街道を伸ばし発展カードを活用</small></span></label>
-        <label><input type="radio" name="difficulty" value="hard"><span><b>強い</b><small>毎ターン建てきり発展カード多用</small></span></label>
-        <label><input type="radio" name="difficulty" value="expert"><span><b>もっと強い</b><small>銀行交換を駆使し休まず拡大</small></span></label>
-        <label><input type="radio" name="difficulty" value="master"><span><b>最強</b><small>最長交易路も狙い、交易もシビアかつ頻繁</small></span></label>
-      </fieldset>
-      <fieldset class="start-options">
-        <legend>NPCの速さ</legend>
-        <label><input type="radio" name="botSpeed" value="slow"><span><b>ゆっくり</b><small>動きをじっくり確認できる</small></span></label>
-        <label><input type="radio" name="botSpeed" value="normal" checked><span><b>ふつう</b><small>標準的なテンポ</small></span></label>
-        <label><input type="radio" name="botSpeed" value="fast"><span><b>はやい</b><small>サクサク進む</small></span></label>
+        <legend data-ja="NPCの強さ" data-en="NPC strength">NPCの強さ</legend>
+        <label><input type="radio" name="difficulty" value="easy"><span><b data-ja="やさしい" data-en="Easy">やさしい</b><small data-ja="バランスよく建設する初心者向け" data-en="Balanced building, beginner friendly">バランスよく建設する初心者向け</small></span></label>
+        <label><input type="radio" name="difficulty" value="normal" checked><span><b data-ja="ふつう" data-en="Normal">ふつう</b><small data-ja="街道を伸ばし発展カードを活用" data-en="Extends roads and uses development cards">街道を伸ばし発展カードを活用</small></span></label>
+        <label><input type="radio" name="difficulty" value="hard"><span><b data-ja="強い" data-en="Hard">強い</b><small data-ja="毎ターン建てきり発展カード多用" data-en="Builds every turn, heavy dev card use">毎ターン建てきり発展カード多用</small></span></label>
+        <label><input type="radio" name="difficulty" value="expert"><span><b data-ja="もっと強い" data-en="Harder">もっと強い</b><small data-ja="銀行交換を駆使し休まず拡大" data-en="Uses bank trades constantly, never idle">銀行交換を駆使し休まず拡大</small></span></label>
+        <label><input type="radio" name="difficulty" value="master"><span><b data-ja="最強" data-en="Strongest">最強</b><small data-ja="最長交易路も狙い、交易もシビアかつ頻繁" data-en="Chases Longest Road, trades often and shrewdly">最長交易路も狙い、交易もシビアかつ頻繁</small></span></label>
       </fieldset>
       <fieldset class="start-options">
-        <legend>勝利条件（勝利点）</legend>
-        <label><input type="radio" name="targetScore" value="10" checked><span><b>10点</b><small>標準・短め</small></span></label>
-        <label><input type="radio" name="targetScore" value="15"><span><b>15点</b><small>じっくり</small></span></label>
-        <label><input type="radio" name="targetScore" value="20"><span><b>20点</b><small>長期戦・NPC戦向き</small></span></label>
+        <legend data-ja="NPCの速さ" data-en="NPC speed">NPCの速さ</legend>
+        <label><input type="radio" name="botSpeed" value="slow"><span><b data-ja="ゆっくり" data-en="Slow">ゆっくり</b><small data-ja="動きをじっくり確認できる" data-en="Watch every move play out slowly">動きをじっくり確認できる</small></span></label>
+        <label><input type="radio" name="botSpeed" value="normal" checked><span><b data-ja="ふつう" data-en="Normal">ふつう</b><small data-ja="標準的なテンポ" data-en="Standard pace">標準的なテンポ</small></span></label>
+        <label><input type="radio" name="botSpeed" value="fast"><span><b data-ja="はやい" data-en="Fast">はやい</b><small data-ja="サクサク進む" data-en="Zips right along">サクサク進む</small></span></label>
+      </fieldset>
+      <fieldset class="start-options">
+        <legend data-ja="勝利条件（勝利点）" data-en="Victory condition (points)">勝利条件（勝利点）</legend>
+        <label><input type="radio" name="targetScore" value="10" checked><span><b data-ja="10点" data-en="10 points">10点</b><small data-ja="標準・短め" data-en="Standard, shorter game">標準・短め</small></span></label>
+        <label><input type="radio" name="targetScore" value="15"><span><b data-ja="15点" data-en="15 points">15点</b><small data-ja="じっくり" data-en="A longer game">じっくり</small></span></label>
+        <label><input type="radio" name="targetScore" value="20"><span><b data-ja="20点" data-en="20 points">20点</b><small data-ja="長期戦・NPC戦向き" data-en="Long game, good vs. NPCs">長期戦・NPC戦向き</small></span></label>
       </fieldset>
       <fieldset class="start-options future-options">
-        <legend>拡張機能</legend>
-        <label><input type="checkbox" checked disabled><span><b>基本ゲーム</b><small>3〜4人用</small></span></label>
-        <label><input type="checkbox" id="expansionSeafarers"><span><b>航海者たち</b><small>船・金鉱・新しい島を追加</small></span></label>
-        <label><input type="checkbox" id="expansionHeroes"><span><b>✦ 英雄の伝説</b><small>各プレイヤーが固有の英雄能力を持つ（yuji オリジナル）</small></span></label>
-        <label><input type="checkbox" id="expansionBarbarians"><span><b>🏴 蛮族の来襲</b><small>7ターンごとに蛮族が侵攻（都市と騎士 簡易版）</small></span></label>
+        <legend data-ja="拡張機能" data-en="Expansions">拡張機能</legend>
+        <label><input type="checkbox" checked disabled><span><b data-ja="基本ゲーム" data-en="Base game">基本ゲーム</b><small data-ja="3〜4人用" data-en="For 3–4 players">3〜4人用</small></span></label>
+        <label><input type="checkbox" id="expansionSeafarers"><span><b data-ja="航海者たち" data-en="Seafarers">航海者たち</b><small data-ja="船・金鉱・新しい島を追加" data-en="Adds ships, gold fields and new islands">船・金鉱・新しい島を追加</small></span></label>
+        <label><input type="checkbox" id="expansionHeroes"><span><b data-ja="✦ 英雄の伝説" data-en="✦ Legend of Heroes">✦ 英雄の伝説</b><small data-ja="各プレイヤーが固有の英雄能力を持つ（yuji オリジナル）" data-en="Each player gets a unique hero ability (yuji original)">各プレイヤーが固有の英雄能力を持つ（yuji オリジナル）</small></span></label>
+        <label><input type="checkbox" id="expansionBarbarians"><span><b data-ja="🏴 蛮族の来襲" data-en="🏴 Barbarian Attack">🏴 蛮族の来襲</b><small data-ja="7ターンごとに蛮族が侵攻（都市と騎士 簡易版）" data-en="Barbarians invade every 7 turns (simplified Cities & Knights)">7ターンごとに蛮族が侵攻（都市と騎士 簡易版）</small></span></label>
       </fieldset>
-      <label class="music-choice"><input type="checkbox" id="startMusic"> BGM・効果音をオン</label>
-      <button class="start-button" id="startGameBtn">ゲームを始める</button>
-      <a class="online-switch" href="online.html">🌐 オンラインで友達と対戦する</a>
+      <label class="music-choice"><input type="checkbox" id="startMusic"> <span data-ja="BGM・効果音をオン" data-en="Turn on music &amp; sound">BGM・効果音をオン</span></label>
+      <button class="start-button" id="startGameBtn" data-ja="ゲームを始める" data-en="Start Game">ゲームを始める</button>
+      <a class="online-switch" href="online.html" data-ja="🌐 オンラインで友達と対戦する" data-en="🌐 Play online with friends">🌐 オンラインで友達と対戦する</a>
     </div>
   </div>
   <div class="pass-screen hidden" id="passScreen" style="display:none">
     <div class="pass-card">
-      <span class="pass-kicker">手番の交代</span>
+      <span class="pass-kicker" data-ja="手番の交代" data-en="Pass the device">手番の交代</span>
       <div class="pass-avatar" id="passAvatar">P</div>
       <h2 id="passName">プレイヤー</h2>
       <p id="passSubtitle">準備ができたらボタンを押してください。</p>
-      <button class="pass-confirm" id="passConfirmBtn">✋ 自分です・手札を見る</button>
-      <small>ほかの人に手札が見えないよう、端末を渡してから押してね</small>
+      <button class="pass-confirm" id="passConfirmBtn" data-ja="✋ 自分です・手札を見る" data-en="✋ That’s me · show my hand">✋ 自分です・手札を見る</button>
+      <small data-ja="ほかの人に手札が見えないよう、端末を渡してから押してね" data-en="Hand the device over before pressing, so no one else sees your hand">ほかの人に手札が見えないよう、端末を渡してから押してね</small>
     </div>
   </div>
   <div class="app-shell">
@@ -107,11 +111,11 @@
         </div>
         <div class="turn-banner">
           <span class="turn-dot" id="turnDot"></span>
-          <div><small>現在のターン</small><strong id="turnName">あなた</strong></div>
+          <div><small data-ja="現在のターン" data-en="Current turn">現在のターン</small><strong id="turnName">あなた</strong></div>
           <span class="turn-score" id="turnScore">2 VP</span>
         </div>
         <div class="roll-log" id="rollLog" hidden>
-          <span class="roll-log-title">ダイスの記録</span>
+          <span class="roll-log-title" data-ja="ダイスの記録" data-en="Roll history">ダイスの記録</span>
           <div class="roll-log-list" id="rollLogList"></div>
         </div>
         <div class="board-wrap">
@@ -123,85 +127,85 @@
           <div class="gambler-pick" id="gamblerPick" style="display:none"></div>
         </div>
         <div class="action-bar">
-          <button class="cancel-card-btn" id="cancelCardBtn" hidden>↩ やっぱりやめる</button>
+          <button class="cancel-card-btn" id="cancelCardBtn" hidden data-ja="↩ やっぱりやめる" data-en="↩ Never mind">↩ やっぱりやめる</button>
           <button class="primary-action" id="rollBtn"><span class="dice-icon">⚄</span><span><small>アクション</small>ダイスを振る</span></button>
           <div class="dice-result" id="diceResult"><span>—</span><span>—</span></div>
           <button class="end-turn" id="endTurnBtn" disabled>ターン終了 →</button>
         </div>
         <button class="npc-control" id="npcControlBtn" hidden>NPCを今すぐ進める →</button>
         <div class="corner-controls">
-          <button class="cc-btn cc-newgame" id="newGameBtn">新しいゲーム</button>
-          <button class="cc-btn cc-recover" id="recoverBtn" title="進まなくなった時に押してください">↻ 進まない時</button>
-          <a class="cc-btn cc-online" href="online.html">🌐 オンライン対戦</a>
-          <button class="cc-btn cc-rules" id="rulesBtn">遊び方</button>
+          <button class="cc-btn cc-newgame" id="newGameBtn" data-ja="新しいゲーム" data-en="New Game">新しいゲーム</button>
+          <button class="cc-btn cc-recover" id="recoverBtn" data-i18n-attr="title" data-ja="進まなくなった時に押してください" data-en="Press this if the game gets stuck" title="進まなくなった時に押してください"><span data-ja="↻ 進まない時" data-en="↻ Stuck?">↻ 進まない時</span></button>
+          <a class="cc-btn cc-online" href="online.html" data-ja="🌐 オンライン対戦" data-en="🌐 Play Online">🌐 オンライン対戦</a>
+          <button class="cc-btn cc-rules" id="rulesBtn" data-ja="遊び方" data-en="How to Play">遊び方</button>
           <div class="cc-icons">
-            <button class="cc-icon" id="soundBtn" title="効果音オン・オフ">♪</button>
-            <button class="cc-icon" id="bgmBtn" title="BGMを切り替え">♫</button>
-            <button class="cc-icon" id="fullscreenBtn" title="全画面表示">⛶</button>
+            <button class="cc-icon" id="soundBtn" data-i18n-attr="title" data-ja="効果音オン・オフ" data-en="Toggle sound effects" title="効果音オン・オフ">♪</button>
+            <button class="cc-icon" id="bgmBtn" data-i18n-attr="title" data-ja="BGMを切り替え" data-en="Change background music" title="BGMを切り替え">♫</button>
+            <button class="cc-icon" id="fullscreenBtn" data-i18n-attr="title" data-ja="全画面表示" data-en="Fullscreen" title="全画面表示">⛶</button>
           </div>
         </div>
         <div class="robber-confirm-overlay" id="robberConfirmOverlay" style="display:none">
-          <span class="robber-confirm-hint">♟ この土地に盗賊を置く？</span>
-          <button class="robber-confirm-btn" onclick="confirmRobberPlacement()">✓ 確定</button>
-          <button class="robber-cancel-btn" onclick="cancelRobberPlacement()">← 置き直す</button>
+          <span class="robber-confirm-hint" data-ja="♟ この土地に盗賊を置く？" data-en="♟ Place the robber here?">♟ この土地に盗賊を置く？</span>
+          <button class="robber-confirm-btn" onclick="confirmRobberPlacement()" data-ja="✓ 確定" data-en="✓ Confirm">✓ 確定</button>
+          <button class="robber-cancel-btn" onclick="cancelRobberPlacement()" data-ja="← 置き直す" data-en="← Choose again">← 置き直す</button>
         </div>
         <div class="robber-confirm-overlay" id="pirateConfirmOverlay" style="display:none">
-          <span class="robber-confirm-hint">⛵ この海域に海賊を置く？</span>
-          <button class="robber-confirm-btn" onclick="confirmPiratePlacement()">✓ 確定</button>
-          <button class="robber-cancel-btn" onclick="cancelPiratePlacement()">← 置き直す</button>
+          <span class="robber-confirm-hint" data-ja="⛵ この海域に海賊を置く？" data-en="⛵ Place the pirate here?">⛵ この海域に海賊を置く？</span>
+          <button class="robber-confirm-btn" onclick="confirmPiratePlacement()" data-ja="✓ 確定" data-en="✓ Confirm">✓ 確定</button>
+          <button class="robber-cancel-btn" onclick="cancelPiratePlacement()" data-ja="← 置き直す" data-en="← Choose again">← 置き直す</button>
         </div>
       </section>
       <aside class="sidebar">
         <section class="panel barb-panel" id="barbPanel" hidden>
           <div class="panel-heading">
-            <h2>🏴 蛮族の来襲</h2>
+            <h2 data-ja="🏴 蛮族の来襲" data-en="🏴 Barbarian Attack">🏴 蛮族の来襲</h2>
             <span id="barbInfo">あと 7 ターン</span>
           </div>
           <div class="barb-track" id="barbTrack"></div>
-          <small class="barb-hint">騎士カード合計 ≥ 都市数で撃退。撃退成功→首位者が発展カード獲得、失敗→騎士なしプレイヤーの都市が破壊</small>
+          <small class="barb-hint" data-ja="騎士カード合計 ≥ 都市数で撃退。撃退成功→首位者が発展カード獲得、失敗→騎士なしプレイヤーの都市が破壊" data-en="Total Knights ≥ Cities repels them. Success → the leader gets a dev card. Failure → knight-less players lose a city.">騎士カード合計 ≥ 都市数で撃退。撃退成功→首位者が発展カード獲得、失敗→騎士なしプレイヤーの都市が破壊</small>
         </section>
         <section class="panel build-panel">
-          <div class="panel-heading"><h2>建設</h2><span>コスト</span></div>
+          <div class="panel-heading"><h2 data-ja="建設" data-en="Build">建設</h2><span data-ja="コスト" data-en="Cost">コスト</span></div>
           <div class="build-options">
             <button class="build-card" data-build="road">
-              <span class="build-art road-art"></span><span><b>街道</b><small>🌲 1　🧱 1</small></span><em>建てる</em>
+              <span class="build-art road-art"></span><span><b data-ja="街道" data-en="Road">街道</b><small>🌲 1　🧱 1</small></span><em data-ja="建てる" data-en="Build">建てる</em>
             </button>
             <button class="build-card" data-build="ship" id="shipBuildBtn">
-              <span class="build-art">⛵</span><span><b>船</b><small>🌲 1　🐑 1</small></span><em>建てる</em>
+              <span class="build-art">⛵</span><span><b data-ja="船" data-en="Ship">船</b><small>🌲 1　🐑 1</small></span><em data-ja="建てる" data-en="Build">建てる</em>
             </button>
             <button class="build-card" data-build="settlement">
-              <span class="build-art house-art">⌂</span><span><b>開拓地</b><small>🌲 1　🧱 1　🌾 1　🐑 1</small></span><em>建てる</em>
+              <span class="build-art house-art">⌂</span><span><b data-ja="開拓地" data-en="Settlement">開拓地</b><small>🌲 1　🧱 1　🌾 1　🐑 1</small></span><em data-ja="建てる" data-en="Build">建てる</em>
             </button>
             <button class="build-card" data-build="city">
-              <span class="build-art city-art">♜</span><span><b>都市へ発展</b><small>🌾 2　⛏ 3</small></span><em>発展</em>
+              <span class="build-art city-art">♜</span><span><b data-ja="都市へ発展" data-en="Upgrade to City">都市へ発展</b><small>🌾 2　⛏ 3</small></span><em data-ja="発展" data-en="Upgrade">発展</em>
             </button>
             <button class="build-card" data-build="development">
-              <span class="build-art">✦</span><span><b>発展カード</b><small>🌾 1　🐑 1　⛏ 1</small></span><em>購入</em>
+              <span class="build-art">✦</span><span><b data-ja="発展カード" data-en="Dev Card">発展カード</b><small>🌾 1　🐑 1　⛏ 1</small></span><em data-ja="購入" data-en="Buy">購入</em>
             </button>
-            <button class="dev-play-btn" id="playDevBtn">発展カードを使う <span id="devCount">0枚</span></button>
+            <button class="dev-play-btn" id="playDevBtn"><span data-ja="発展カードを使う" data-en="Use a dev card">発展カードを使う</span> <span id="devCount">0枚</span></button>
             <button class="ship-move-btn" id="moveShipBtn">⛵ 船を移動（1ターン1回）</button>
             <div class="dev-cards-list" id="devCardsList"><small>発展カードはまだありません</small></div>
           </div>
         </section>
 
         <section class="panel trade-panel">
-          <div class="panel-heading"><h2>プレイヤーと交換</h2><span>通話モード</span></div>
+          <div class="panel-heading"><h2 data-ja="プレイヤーと交換" data-en="Trade with Players">プレイヤーと交換</h2><span data-ja="通話モード" data-en="Talk it out">通話モード</span></div>
           <div class="player-trade">
-            <label class="trade-target-label">交換相手<select id="playerTradeTarget" aria-label="交換相手"></select></label>
+            <label class="trade-target-label"><span data-ja="交換相手" data-en="Trade with">交換相手</span><select id="playerTradeTarget" aria-label="交換相手"></select></label>
             <div class="flex-trade" id="flexTrade"></div>
             <div class="trade-actions">
-              <button class="quick-trade-btn" id="playerTradeBtn">選んだ相手に提案</button>
-              <button class="quick-trade-btn trade-all-btn" id="playerTradeAllBtn">全員に提案</button>
+              <button class="quick-trade-btn" id="playerTradeBtn" data-ja="選んだ相手に提案" data-en="Propose to selected">選んだ相手に提案</button>
+              <button class="quick-trade-btn trade-all-btn" id="playerTradeAllBtn" data-ja="全員に提案" data-en="Propose to everyone">全員に提案</button>
             </div>
-            <small class="trade-hint">渡す資源ともらう資源を自由に組み合わせて提案できます（例：🌾1＋⛏1 → 🐑1）。NPCは手札と建設計画を見て返事します。</small>
+            <small class="trade-hint" data-ja="渡す資源ともらう資源を自由に組み合わせて提案できます（例：🌾1＋⛏1 → 🐑1）。NPCは手札と建設計画を見て返事します。" data-en="Mix and match what you give and what you want (e.g. 🌾1 + ⛏1 → 🐑1). NPCs reply based on their hand and build plans.">渡す資源ともらう資源を自由に組み合わせて提案できます（例：🌾1＋⛏1 → 🐑1）。NPCは手札と建設計画を見て返事します。</small>
           </div>
         </section>
 
         <section class="panel trade-panel bank-panel">
-          <div class="panel-heading"><h2>銀行・港と交換</h2><span id="bankRate">4 : 1</span></div>
+          <div class="panel-heading"><h2 data-ja="銀行・港と交換" data-en="Bank &amp; Harbor Trade">銀行・港と交換</h2><span id="bankRate">4 : 1</span></div>
           <div class="trade-row">
             <select id="tradeGive" aria-label="渡す資源"></select><span>→</span><select id="tradeGet" aria-label="もらう資源"></select>
-            <button id="tradeBtn">交換</button>
+            <button id="tradeBtn" data-ja="交換" data-en="Trade">交換</button>
           </div>
           <small class="my-harbors" id="myHarbors"></small>
         </section>
