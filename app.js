@@ -264,6 +264,7 @@ const T = {
     reasonMismatch: '条件が見合わない',
     reasonShort: '{res}が足りない',
     reasonTooMuch: '渡す枚数が多すぎる',
+    reasonWinRisk: 'それを渡すと勝たれてしまう',
     receive: '受け取る',
     resourceLabel: '資源',
     resourceShort2: '資源が足りません',
@@ -501,6 +502,7 @@ const T = {
     reasonMismatch: 'Not a good fit',
     reasonShort: 'Not enough {res}',
     reasonTooMuch: 'Asking for too much',
+    reasonWinRisk: 'That trade would hand you the win',
     receive: 'Receive',
     resourceLabel: 'Resource',
     resourceShort2: 'Not enough resources',
@@ -2585,13 +2587,26 @@ function roadValue(edgeIndex, player) {
   state.roads[edgeIndex] = player;
   const after = longestRoadLength(player);
   delete state.roads[edgeIndex];
-  return settleValue + Math.max(0, after - before) * 2.5;
+  let bonus = Math.max(0, after - before) * 2.5;
+  // 他の誰かが最長交易路を持っている時、この一手で奪えるなら最優先で狙いにいく
+  if (state.longestRoadOwner != null && state.longestRoadOwner !== player && after >= 5) {
+    const rivalLen = longestRoadLength(state.longestRoadOwner);
+    if (after > rivalLen && before <= rivalLen) bonus += 8;
+  }
+  return settleValue + bonus;
 }
 
 // Seafarers: a settlement spot is worth more on an undiscovered island (bonus VP)
 function botVertexValue(vertex, player) {
   // smart系は開幕と同じ評価（資源多様性・港・数字の分散）を使う。それ以外は確率だけの雑な評価のまま。
   let score = botRules().smart ? botSetupScore(vertex, player) : setupVertexScore(vertex);
+  // 最強(elite)は「相手にとってもいい場所」を先取りする価値も上乗せする（妨害）
+  if (botRules().elite) {
+    state.players.forEach((p, idx) => {
+      if (idx === player || p.bot) return;
+      score += botSetupScore(vertex, idx) * 0.35;
+    });
+  }
   if (state.expansion === 'seafarers') {
     vertices[vertex].tiles.forEach(tileIndex => {
       const island = tiles[tileIndex]?.island;
@@ -2747,8 +2762,25 @@ function showSageDialog(player, card1, card2) {
 
 function handSize(player) { return Object.values(state.players[player].resources).reduce((a, b) => a + b, 0); }
 
+// 最強(elite)専用: このタイルの資源を止めれば、あと1枚で建設できてしまう相手を止められるか
+function robberDenialBonus(owner, tileIndex) {
+  if (!botRules().elite) return 0;
+  const resource = TYPE_DATA[tiles[tileIndex].type].res;
+  if (!resource) return 0;
+  const res = state.players[owner].resources;
+  const oneCardShort = type => {
+    if (!hasPieceAvailable(owner, type)) return false;
+    const cost = effectiveCost(type, owner);
+    if (!(cost[resource] > 0)) return false;
+    const missing = Object.entries(cost).reduce((sum, [key, amount]) => sum + Math.max(0, amount - (res[key] || 0)), 0);
+    return missing === 1;
+  };
+  return (oneCardShort('settlement') || oneCardShort('city')) ? 4 : 0;
+}
+
 function moveRobberAndSteal(player) {
   const smart = botRules().smart;
+  const elite = botRules().elite;
   const target = tiles.map((tile, index) => {
     if (index === state.robberTile || tile.type === 'desert' || tile.type === 'sea') return { index, score: -1 };
     let score = tile.vertices.reduce((sum, vertex) => {
@@ -2756,8 +2788,8 @@ function moveRobberAndSteal(player) {
       if (!building || building.player === player) return sum;
       const base = building.type === 'city' ? 3 : 2;
       // Smart bots hit whoever is ahead — leader standing dominates, tile productivity is secondary.
-      const lead = smart ? 1 + visibleVP(building.player) * 0.6 : 1;
-      return sum + base * lead;
+      const lead = smart ? 1 + (elite ? totalVP(building.player) : visibleVP(building.player)) * 0.6 : 1;
+      return sum + base * lead + robberDenialBonus(building.player, index);
     }, 0);
     if (smart) score *= 0.75 + pipValue(tile.num) / 8;
     return { index, score: score + Math.random() * (smart ? 0.3 : 1) };
@@ -2969,13 +3001,31 @@ function handSummaryHtml(player = 0) {
   return `<div class="modal-hand"><span class="modal-hand-label">${handOfLabel(owner.name)}</span><div class="modal-hand-list">${Object.entries(RESOURCES).map(([key, resource]) => `<span class="modal-hand-item${owner.resources[key] ? '' : ' zero'}">${resource.icon}<b>${owner.resources[key]}</b></span>`).join('')}</div></div>`;
 }
 
+// 最強(elite)専用: この交換で proposer(人間側)に資源を渡すと、その場で建設して勝ってしまわないか判定
+function opponentWinRisk(proposer, extraGive) {
+  if (!botRules().elite) return false;
+  const player = state.players[proposer];
+  if (!player) return false;
+  const target = state.targetScore || 10;
+  if (totalVP(proposer) + 1 < target) return false; // まだ勝利に近くないなら無関係
+  const projected = { ...player.resources };
+  Object.keys(RESOURCES).forEach(key => { projected[key] = (projected[key] || 0) + (extraGive[key] || 0); });
+  const affordable = type => Object.entries(effectiveCost(type, proposer)).every(([res, amount]) => (projected[res] || 0) >= amount);
+  if (hasPieceAvailable(proposer, 'city') && affordable('city') &&
+      Object.values(state.buildings).some(b => b.player === proposer && b.type === 'settlement')) return true;
+  if (hasPieceAvailable(proposer, 'settlement') && affordable('settlement') &&
+      vertices.some((_, v) => canSettle(v, proposer))) return true;
+  return false;
+}
+
 // give = 人間が渡す（NPCが受け取る） / get = 人間がもらう（NPCが渡す）
-function npcTradeDecision(target, give, get) {
+function npcTradeDecision(target, give, get, proposer = state.turn) {
   const npc = state.players[target];
   const giveTotal = sumRes(give), getTotal = sumRes(get);
   if (!npc || target === 0 || giveTotal < 1 || getTotal < 1) return { accept: false, score: -Infinity, reason: t('reasonInvalid') };
   const short = Object.keys(RESOURCES).find(key => npc.resources[key] < (get[key] || 0));
   if (short) return { accept: false, score: -Infinity, reason: t('reasonShort', { res: RESOURCES[short].name }) };
+  if (opponentWinRisk(proposer, get)) return { accept: false, score: -Infinity, reason: t('reasonWinRisk') };
   let receiveValue = 0, giveValue = 0;
   Object.keys(RESOURCES).forEach(key => {
     if (give[key]) receiveValue += give[key] * (3 / (1 + npc.resources[key]) + npcResourceNeed(target, key));

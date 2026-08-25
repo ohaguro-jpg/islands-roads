@@ -588,3 +588,97 @@ run(`(() => {
   LANG = savedLang;
 })()`);
 console.log('i18n "You" grammar test: PASS');
+
+// AI強化①: 最強(elite)は「人間があと1手で勝ってしまう交換」を提案されても拒否する。
+run(`(() => {
+  const savedDiff = gameConfig.difficulty, savedTarget = state.targetScore, savedVp = state.players[0].vp,
+        savedRes0 = state.players[0].resources, savedRes1 = state.players[1].resources,
+        savedBuildings = state.buildings, savedLimits = { ...PIECE_LIMITS };
+  PIECE_LIMITS.city = 99; PIECE_LIMITS.settlement = 99;
+  state.targetScore = 10;
+  state.players[0].vp = 9; // あと1点で勝利
+  state.players[0].resources = { wood: 0, brick: 0, wheat: 2, sheep: 0, ore: 1 }; // 都市まであとore1枚
+  state.players[1].resources = { wood: 2, brick: 2, wheat: 2, sheep: 2, ore: 5 };
+  state.buildings = { 0: { player: 0, type: 'settlement' } };
+
+  gameConfig.difficulty = 'master';
+  if (!opponentWinRisk(0, { ore: 2 })) throw new Error('★最強なのに勝利直結の交換を検知できていない');
+  const decision = npcTradeDecision(1, { sheep: 2 }, { ore: 2 }, 0);
+  if (decision.accept) throw new Error('★最強が人間の勝利直結トレードを受けてしまった');
+  if (decision.reason !== t('reasonWinRisk')) throw new Error('拒否理由がreasonWinRisk以外: ' + decision.reason);
+
+  gameConfig.difficulty = 'hard'; // eliteでない難易度では働かない
+  if (opponentWinRisk(0, { ore: 2 })) throw new Error('eliteでないのに勝利阻止ロジックが働いてしまった');
+
+  gameConfig.difficulty = savedDiff; state.targetScore = savedTarget; state.players[0].vp = savedVp;
+  state.players[0].resources = savedRes0; state.players[1].resources = savedRes1;
+  state.buildings = savedBuildings; Object.assign(PIECE_LIMITS, savedLimits);
+})()`);
+console.log('elite win-risk trade guard test: PASS');
+
+// AI強化②: 最強(elite)は「相手があと1枚で建設できる」資源のマスに盗賊を置きたがる。
+run(`(() => {
+  const savedDiff = gameConfig.difficulty, savedRes1 = state.players[1].resources, savedLimits = { ...PIECE_LIMITS };
+  PIECE_LIMITS.settlement = 99;
+  const forestTile = tiles.findIndex(tile => tile.type === 'forest');
+  if (forestTile < 0) throw new Error('テスト前提: forestタイルが見つからない');
+
+  gameConfig.difficulty = 'master';
+  state.players[1].resources = { wood: 0, brick: 1, wheat: 1, sheep: 1, ore: 0 }; // woodが1枚だけ足りない
+  if (robberDenialBonus(1, forestTile) <= 0) throw new Error('★最強なのに「あと1枚」の相手を妨害できていない');
+
+  state.players[1].resources = { wood: 0, brick: 0, wheat: 1, sheep: 1, ore: 0 }; // 2枚不足＝対象外
+  if (robberDenialBonus(1, forestTile) !== 0) throw new Error('2枚以上不足なのに妨害ボーナスが乗ってしまった');
+
+  gameConfig.difficulty = 'hard'; // eliteでないと働かない
+  state.players[1].resources = { wood: 0, brick: 1, wheat: 1, sheep: 1, ore: 0 };
+  if (robberDenialBonus(1, forestTile) !== 0) throw new Error('eliteでないのに妨害ボーナスが働いてしまった');
+
+  gameConfig.difficulty = savedDiff; state.players[1].resources = savedRes1; Object.assign(PIECE_LIMITS, savedLimits);
+})()`);
+console.log('elite robber denial test: PASS');
+
+// AI強化③: 最強(elite)は開拓地選びで「他プレイヤーにとっても良いマス」を先取りする加点が乗る。
+run(`(() => {
+  const savedDiff = gameConfig.difficulty, savedBuildings = state.buildings, savedBot1 = state.players[1].bot;
+  state.buildings = {};
+  state.players[1].bot = false; // 妨害計算のため「もう一人の人間」を用意
+  const v = vertices.findIndex((_, i) => vertices[i].tiles.length > 0);
+  if (v < 0) throw new Error('テスト前提: タイルに接するマスが見つからない');
+
+  gameConfig.difficulty = 'hard'; // smartだがelite無し
+  const noDenial = botVertexValue(v, 0);
+  gameConfig.difficulty = 'master'; // smart+elite
+  const withDenial = botVertexValue(v, 0);
+  if (withDenial - noDenial < 0.5) throw new Error('★最強なのに他プレイヤーの良マス先取り加点が乗っていない noDenial=' + noDenial + ' withDenial=' + withDenial);
+
+  gameConfig.difficulty = savedDiff; state.buildings = savedBuildings; state.players[1].bot = savedBot1;
+})()`);
+console.log('elite settlement denial test: PASS');
+
+// AI強化④: 最強(elite)は「この一手で他人の最長交易路を奪える」場合に緊急加点する。
+run(`(() => {
+  const savedDiff = gameConfig.difficulty, savedOwner = state.longestRoadOwner, savedRoads = state.roads, savedFn = longestRoadLength;
+  state.roads = {};
+  const chain = []; let v = 0;
+  for (let i = 0; i < 6 && chain.length < 4; i++) {
+    const e = edges.findIndex((edge, idx) => !chain.includes(idx) && (edge.a === v || edge.b === v));
+    if (e < 0) break;
+    state.roads[e] = 0; chain.push(e);
+    v = edges[e].a === v ? edges[e].b : edges[e].a;
+  }
+  const extendEdge = edges.findIndex((edge, idx) => !chain.includes(idx) && (edge.a === v || edge.b === v));
+  if (extendEdge < 0) throw new Error('テスト前提: 延長できる辺が見つからない');
+  longestRoadLength = p => p === 1 ? 4 : savedFn(p); // ライバル(1)が交易路4本を保持している想定
+  gameConfig.difficulty = 'master';
+
+  state.longestRoadOwner = 1;
+  const withRivalBonus = roadValue(extendEdge, 0);
+  state.longestRoadOwner = null;
+  const withoutRival = roadValue(extendEdge, 0);
+  if (withRivalBonus - withoutRival < 7) throw new Error('★最強なのに他人の最長交易路を奪える一手に緊急加点が乗らない diff=' + (withRivalBonus - withoutRival));
+
+  longestRoadLength = savedFn;
+  state.longestRoadOwner = savedOwner; state.roads = savedRoads; gameConfig.difficulty = savedDiff;
+})()`);
+console.log('elite longest-road steal urgency test: PASS');
