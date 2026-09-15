@@ -262,9 +262,15 @@ function updateLongestRoad(game) {
   } else game.longestRoadOwner = null;
 }
 
-function createRoom(name, boardMode, expansion, difficulty) {
+// オフライン版と同じ設定値に揃える（難易度5段階・勝利点3種・航海者たち拡張）
+const DIFFICULTY_RANKS = ['easy', 'normal', 'hard', 'expert', 'master'];
+const TARGET_SCORES = [10, 15, 20];
+function cleanDifficulty(value) { return DIFFICULTY_RANKS.includes(value) ? value : 'normal'; }
+function cleanTargetScore(value) { const n = Number(value); return TARGET_SCORES.includes(n) ? n : 10; }
+
+function createRoom(name, boardMode, expansion, difficulty, targetScore) {
   const code = roomCode();
-  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: ['easy','hard'].includes(difficulty) ? difficulty : 'normal', botSpeed: 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [], lastActive: Date.now() };
+  const room = { code, host: 0, phase: 'lobby', boardMode: boardMode === 'random' ? 'random' : 'default', expansion: expansion === 'seafarers' ? 'seafarers' : null, difficulty: cleanDifficulty(difficulty), targetScore: cleanTargetScore(targetScore), botSpeed: 'normal', players: [], version: 1, clients: new Set(), game: null, offers: [], lastActive: Date.now() };
   rooms.set(code, room);
   return { room, identity: addPlayer(room, name) };
 }
@@ -279,9 +285,13 @@ function addPlayer(room, name) {
   return { playerId: player.id, token: player.token, roomCode: room.code };
 }
 
-function startRoom(room, playerId, fillBots = false, difficulty = null) {
+function startRoom(room, playerId, fillBots = false, difficulty = null, options = {}) {
   if (room.host !== playerId) throw new Error('ホストだけが開始できます');
-  if (difficulty) room.difficulty = ['easy','hard'].includes(difficulty) ? difficulty : 'normal';
+  if (difficulty) room.difficulty = cleanDifficulty(difficulty);
+  // ロビーでホストが変更した設定を開始時に反映する
+  if (options.targetScore != null) room.targetScore = cleanTargetScore(options.targetScore);
+  if (options.expansion !== undefined) room.expansion = options.expansion === 'seafarers' ? 'seafarers' : null;
+  if (options.boardMode) room.boardMode = options.boardMode === 'random' ? 'random' : 'default';
   if (fillBots) while (room.players.length < 4) room.players.push({ id: room.players.length, name: `NPC ${room.players.length}`, color: COLORS[room.players.length], token: token(), connected: true, isBot: true });
   if (room.players.length < 2) throw new Error('2人以上必要です。1人の場合はNPCを追加して開始してください');
   const seafarers = room.expansion === 'seafarers';
@@ -303,10 +313,13 @@ function startRoom(room, playerId, fillBots = false, difficulty = null) {
 }
 
 // オンラインNPCの難易度: 1ターンの建設回数・銀行交換・発展カード購入を変える
+// オフライン版(app.js の DIFFICULTY)と同じ5段階・同じ行動量に揃える
 const DIFFICULTY_BOT = {
-  easy:   { maxActions: 2, bankTrade: false, devBuy: false },
-  normal: { maxActions: 4, bankTrade: true,  devBuy: true },
-  hard:   { maxActions: 6, bankTrade: true,  devBuy: true },
+  easy:   { maxActions: 4,  bankTrade: true, devBuy: true, smart: false },
+  normal: { maxActions: 6,  bankTrade: true, devBuy: true, smart: false },
+  hard:   { maxActions: 9,  bankTrade: true, devBuy: true, smart: true  },
+  expert: { maxActions: 16, bankTrade: true, devBuy: true, smart: true  },
+  master: { maxActions: 24, bankTrade: true, devBuy: true, smart: true  },
 };
 // 目標(type)に足りない資源を、余剰資源の銀行交換で1回ぶん補う。交換したら true。
 function botBankTradeToward(room, player, type) {
@@ -369,7 +382,7 @@ function scheduleRoomBot(room) {
         // 銀行交換で目標に近づく（normal/hard）。優先度: 都市→開拓地→（hardのみ）街道
         else if (diff.bankTrade && canCity && botBankTradeToward(room, player, 'city')) { /* traded */ }
         else if (diff.bankTrade && canSettle && botBankTradeToward(room, player, 'settlement')) { /* traded */ }
-        else if (diff.bankTrade && diff.maxActions >= 6 && canRoad && botBankTradeToward(room, player, 'road')) { /* traded */ }
+        else if (diff.bankTrade && diff.smart && canRoad && botBankTradeToward(room, player, 'road')) { /* traded */ }
         else if (diff.devBuy && game.devDeck.length && canPay(game, player, 'development')) act(room, player, 'buyDev');
         else act(room, player, 'endTurn');
       }
@@ -652,12 +665,12 @@ function act(room, player, type, payload = {}) {
     }
     room.offers = room.offers.filter(item => item.id !== offer.id);
   } else throw new Error('不明な操作です');
-  if (totalVP(game, player) >= 10) game.winner = player;
+  if (totalVP(game, player) >= (room.targetScore || 10)) game.winner = player;
   touch(room);
 }
 
 function publicState(room, playerId) {
-  const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, difficulty: room.difficulty, botSpeed: room.botSpeed, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
+  const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, difficulty: room.difficulty, botSpeed: room.botSpeed, targetScore: room.targetScore || 10, expansion: room.expansion || null, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
   return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, harborEdges: game.harborEdges, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, longestRoadOwner: game.longestRoadOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, devPlayed: game.devPlayed[playerId], offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
@@ -712,7 +725,7 @@ const server = http.createServer(async (request, response) => {
   try {
     if (url.pathname === '/api/health') return json(response, 200, { ok: true });
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
-      const body = await readBody(request); const result = createRoom(body.name, body.boardMode, null, body.difficulty); return json(response, 201, result.identity);
+      const body = await readBody(request); const result = createRoom(body.name, body.boardMode, body.expansion, body.difficulty, body.targetScore); return json(response, 201, result.identity);
     }
     const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot|settings))?$/);
     if (match) {
@@ -754,7 +767,7 @@ const server = http.createServer(async (request, response) => {
         const bot = { id: room.players.length, name: `NPC ${botNum}`, color: COLORS[room.players.length], token: token(), connected: true, isBot: true };
         room.players.push(bot); touch(room); return json(response, 200, { ok: true });
       }
-      if (operation === 'start' && request.method === 'POST') { const body = await readBody(request); startRoom(room, player.id, Boolean(body.fillBots), body.difficulty); return json(response, 200, { ok: true }); }
+      if (operation === 'start' && request.method === 'POST') { const body = await readBody(request); startRoom(room, player.id, Boolean(body.fillBots), body.difficulty, { targetScore: body.targetScore, expansion: body.expansion, boardMode: body.boardMode }); return json(response, 200, { ok: true }); }
       if (operation === 'action' && request.method === 'POST') { const body = await readBody(request); act(room, player.id, body.type, body.payload); return json(response, 200, { ok: true }); }
     }
     const requested = url.pathname === '/' ? '/index.html' : url.pathname;

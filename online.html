@@ -36,7 +36,22 @@
         <div>
           <h2>チームを作る</h2>
           <select id="onlineBoard"><option value="default">固定盤面</option><option value="random">ランダム盤面</option></select>
-          <select id="onlineDifficulty"><option value="normal" selected>NPC：ふつう</option><option value="easy">NPC：やさしい</option><option value="hard">NPC：強い</option></select>
+          <select id="onlineDifficulty">
+            <option value="easy">NPC：やさしい</option>
+            <option value="normal" selected>NPC：ふつう</option>
+            <option value="hard">NPC：強い</option>
+            <option value="expert">NPC：もっと強い</option>
+            <option value="master">NPC：最強</option>
+          </select>
+          <select id="onlineTargetScore">
+            <option value="10" selected>勝利点 10（標準）</option>
+            <option value="15">勝利点 15（じっくり）</option>
+            <option value="20">勝利点 20（長期戦）</option>
+          </select>
+          <select id="onlineExpansion">
+            <option value="">基本ゲーム</option>
+            <option value="seafarers">🌊 航海者たち</option>
+          </select>
           <button id="createRoomBtn">チームを作る</button>
         </div>
         <div>
@@ -120,6 +135,21 @@
                 <option value="easy">やさしい</option>
                 <option value="normal" selected>ふつう</option>
                 <option value="hard">強い</option>
+                <option value="expert">もっと強い</option>
+                <option value="master">最強</option>
+              </select>
+            </label>
+            <label class="lobby-diff-label">勝利条件
+              <select id="lobbyTargetScore">
+                <option value="10" selected>勝利点 10（標準）</option>
+                <option value="15">勝利点 15（じっくり）</option>
+                <option value="20">勝利点 20（長期戦）</option>
+              </select>
+            </label>
+            <label class="lobby-diff-label">拡張
+              <select id="lobbyExpansion">
+                <option value="">基本ゲーム</option>
+                <option value="seafarers">🌊 航海者たち</option>
               </select>
             </label>
           </div>

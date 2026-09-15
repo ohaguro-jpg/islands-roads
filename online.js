@@ -83,7 +83,7 @@ async function withPending(btn, label, fn){
 }
 async function createRoom(){
   await withPending($('#createRoomBtn'),'作成中…',async()=>{
-    const result = await request('/api/rooms', {method:'POST', body:JSON.stringify({name:$('#onlineName').value, boardMode:$('#onlineBoard').value, difficulty:$('#onlineDifficulty').value})});
+    const result = await request('/api/rooms', {method:'POST', body:JSON.stringify({name:$('#onlineName').value, boardMode:$('#onlineBoard').value, difficulty:$('#onlineDifficulty').value, targetScore:Number($('#onlineTargetScore').value), expansion:$('#onlineExpansion').value||null})});
     saveSession(result); showGame();
   });
 }
@@ -316,7 +316,7 @@ function renderTurnBanner(){
   const g=state.game, me=g.turn===state.you;
   $('#turnDot').style.background=me?'#4a8c5c':'#b04030';
   $('#turnName').textContent=me?'あなたのターンです':state.players[g.turn].name+'のターン';
-  $('#turnScore').textContent=`${g.vp[state.you]} VP`;
+  $('#turnScore').textContent=`勝利点 ${g.vp[state.you]} / ${state.targetScore||10}`;
 }
 
 // ===== TURN INFO (stage text as notice) =====
@@ -520,6 +520,8 @@ function renderLobby(){
     const diffWrap=$('#lobbyDiffWrap');
     diffWrap.hidden=!isHost;
     if(isHost && state.difficulty) $('#lobbyDifficulty').value=state.difficulty;
+    if(isHost && state.targetScore) $('#lobbyTargetScore').value=String(state.targetScore);
+    if(isHost) $('#lobbyExpansion').value=state.expansion||'';
     $('#addBotBtn').hidden=!isHost||state.players.length>=4;
     $('#startOnlineBtn').hidden=!isHost;
     $('#startOnlineBtn').textContent=state.players.length<2?'NPCを追加して開始':'ゲーム開始';
@@ -611,7 +613,9 @@ $('#joinRoomBtn').onclick=()=>joinRoom(false);
 $('#rejoinBtn').onclick=()=>joinRoom(true);
 $('#startOnlineBtn').onclick=async()=>{
   const diff=$('#lobbyDifficulty')?.value||'normal';
-  try{ await request(`/api/rooms/${session.roomCode}/start`,{method:'POST',body:JSON.stringify({fillBots:state.players.length<2,difficulty:diff})}); }
+  const target=Number($('#lobbyTargetScore')?.value)||10;
+  const exp=$('#lobbyExpansion')?.value||null;
+  try{ await request(`/api/rooms/${session.roomCode}/start`,{method:'POST',body:JSON.stringify({fillBots:state.players.length<2,difficulty:diff,targetScore:target,expansion:exp})}); }
   catch(e){ message(e.message,true); }
 };
 $('#addBotBtn').onclick=async()=>{
