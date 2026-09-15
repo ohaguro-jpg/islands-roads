@@ -74,7 +74,7 @@ async function pollServerUntilReady(){
   }
 }
 function saveSession(value){ session=value; localStorage.setItem('islands-online-session',JSON.stringify(value)); }
-function showGame(){ $('#joinScreen').style.display='none'; $('#gameScreen').style.display=''; $('#roomCode').textContent=session.roomCode; connect(); startPolling(); }
+function showGame(){ $('#joinScreen').style.display='none'; $('#gameScreen').style.display=''; $('#roomCode').textContent=session.roomCode; connect(); startPolling(); startTurnTimer(); }
 
 async function withPending(btn, label, fn){
   const original=btn.textContent; btn.disabled=true; btn.textContent=label;
@@ -607,6 +607,7 @@ function render(){
   renderSteal();
   renderIncomingTrade();
   renderStageNotice();
+  renderTurnTimer();
 
   // Action bar state
   const mine=g.turn===state.you;
@@ -686,6 +687,56 @@ function updateSettingsModal(){
 }
 $('#gearBtn').onclick=()=>{ $('#settingsOverlay').hidden=false; updateSettingsModal(); };
 $('#settingsCloseBtn').onclick=()=>{ $('#settingsOverlay').hidden=true; };
+
+// ↻ 進まない時: サーバー側で詰まりを1手ぶん解消して再同期する
+$('#onlineRecoverBtn').onclick=async()=>{
+  const btn=$('#onlineRecoverBtn'); btn.disabled=true; const orig=btn.textContent; btn.textContent='復帰中…';
+  try{ await request(`/api/rooms/${session.roomCode}/recover`,{method:'POST'}); await refreshState(); toast('盤面を再同期しました'); }
+  catch(e){ toast(e.message); }
+  finally{ btn.disabled=false; btn.textContent=orig; }
+};
+
+// 🚪 ゲームから抜ける（席はNPCが引き継ぐ）
+$('#leaveGameBtn').onclick=()=>{ $('#leaveOverlay').hidden=false; };
+$('#leaveCancelBtn').onclick=()=>{ $('#leaveOverlay').hidden=true; };
+$('#leaveConfirmBtn').onclick=async()=>{
+  $('#leaveOverlay').hidden=true;
+  try{ await request(`/api/rooms/${session.roomCode}/leave`,{method:'POST'}); }catch(e){ /* 抜けるので失敗しても戻る */ }
+  backToJoin('ゲームから抜けました。あなたの席はNPCが引き継ぎました。');
+};
+
+// 遊び方
+function rulesHtml(){
+  const target=state?.targetScore||10;
+  const sea=state?.expansion==='seafarers';
+  return `
+    <p><b>🎯 目的：</b>最初に<b>${target}勝利点</b>に到達した人の勝ちです。開拓地1点・都市2点、最長交易路と最大騎士力で各+2点、勝利点カードでも入ります。</p>
+    <p><b>🏝 初期配置：</b>全員が開拓地と街道を2組ずつ、往復順に置きます。2個目の開拓地の周りのタイルから初期資源をもらえます。</p>
+    <p><b>🎲 資源：</b>手番では必ず最初にダイスを振ります。出た数字のタイルに接する開拓地(1枚)・都市(2枚)の持ち主が資源を得ます。</p>
+    <p><b>🔨 コスト：</b>街道＝🌲🧱／開拓地＝🌲🧱🌾🐑／都市＝🌾2 ⛏3／発展カード＝🌾🐑⛏。開拓地5・都市4・街道15まで。</p>
+    <p><b>🃏 発展カード：</b>買ったターンは使えず、次の自分の手番から1ターン1枚。騎士・街道建設・発見・独占・勝利点。騎士3枚以上で<b>最大騎士力+2点</b>。</p>
+    <p><b>⚓ 港：</b>銀行とは4:1。港に建物があると3:1や2:1で交換できます。手番中は他プレイヤーへの交換提案もできます。</p>
+    <p><b>🦹 7と盗賊：</b>7が出ると手札8枚以上の人は半分を捨てます。振った人が盗賊を動かし、接する相手から1枚奪います。盗賊のいるタイルは産出しません。</p>
+    <p><b>⏱ 持ち時間：</b>オンラインでは1手番<b>30秒</b>です。時間切れになると自動で進みます（ダイスは自動で振られ、建設中なら手番終了）。</p>
+    <p><b>↻ 進まない時：</b>動かなくなったら押してください。盤面を再同期して1手ぶん進めます。</p>
+    <p><b>🚪 抜ける：</b>抜けるとあなたの席はNPCが引き継ぎ、ゲームは続きます。</p>
+    ${sea?`<p><b>🌊 航海者たち：</b>船(🌲🐑)で海を渡れます。金鉱は好きな資源をもらえ、新しい島に最初に開拓地を置くとボーナス点。海では盗賊のかわりに海賊が動きます。</p>`:''}
+    <p><b>🤖 NPCの強さ：</b>やさしい／ふつう／強い／もっと強い／最強 の5段階。強いほど手数が多く、銀行交換や発展カードを活用します。</p>`;
+}
+$('#onlineRulesBtn').onclick=()=>{ $('#onlineRulesBody').innerHTML=rulesHtml(); $('#rulesOverlay').hidden=false; };
+$('#rulesCloseBtn').onclick=()=>{ $('#rulesOverlay').hidden=true; };
+
+// 残り時間の表示（1手番30秒）
+let turnTimerId=null;
+function renderTurnTimer(){
+  const el=$('#turnTimer'); if(!el) return;
+  const dl=state?.turnDeadline;
+  if(!dl||!state.game||state.game.winner!=null){ el.textContent=''; el.className='turn-timer'; return; }
+  const left=Math.max(0,Math.ceil((dl-Date.now())/1000));
+  el.textContent=`⏱ ${left}秒`;
+  el.className='turn-timer'+(left<=10?' urgent':'');
+}
+function startTurnTimer(){ clearInterval(turnTimerId); turnTimerId=setInterval(renderTurnTimer,500); if(turnTimerId.unref) turnTimerId.unref(); }
 
 // Fullscreen
 $('#onlineFullscreenBtn').onclick=()=>{

@@ -50,6 +50,23 @@
 .lobby-diff-label{display:grid;gap:4px;font-size:10px;font-weight:800;margin-top:10px}
 .lobby-diff-label select{padding:7px;border:1px solid #d4cfc1;border-radius:6px;background:white;font:inherit;font-size:12px}
 
+/* ===== 操作ボタン列（オフラインの .corner-controls 相当。盤には重ねない） ===== */
+.online-cc{position:static!important;flex-direction:row!important;flex-wrap:wrap;justify-content:center;gap:8px;margin:8px 14px 4px;align-items:center}
+.online-cc .cc-btn{width:auto;padding:9px 14px;font-size:12px}
+.cc-leave{background:#9a4f3a;color:#fff}
+.cc-rules{background:#3d7181;color:#fff}
+
+/* ===== 残り時間（1手番30秒） ===== */
+.turn-timer{margin-left:auto;font-size:12px;font-weight:800;color:#5b7a70;white-space:nowrap}
+.turn-timer.urgent{color:#b44b3b}
+.turn-timer:empty{display:none}
+
+/* 遊び方モーダルは長いので中でスクロールさせる */
+.rules-card{max-width:min(560px,100%);max-height:80vh;overflow-y:auto;text-align:left}
+.rules-card h3{text-align:center}
+.rules-card .rules-list{font-size:13px;line-height:1.8}
+.rules-card .rules-list p{margin:0 0 10px}
+
 /* ===== Settings modal ===== */
 .settings-speed-btns{display:flex;gap:8px;margin:16px 0}
 .settings-speed-btns button{flex:1;padding:10px 6px;border:1px solid #d4cfc1;border-radius:8px;background:#fff;cursor:pointer;font:inherit;font-size:12px;font-weight:700;transition:background .1s}

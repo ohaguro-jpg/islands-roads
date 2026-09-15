@@ -394,38 +394,69 @@ function scheduleRoomBot(room) {
   room.botTimer.unref?.(); // テストやCLIでプロセス終了を妨げない（本番はHTTPサーバが常駐）
 }
 
+const TURN_LIMIT_MS = 30000; // オンラインの1手番の制限時間（30秒）
+
+// 手番の人の代わりに、その場面で妥当な手を1つ打つ。
+// 「時間切れ」と「進まない時」ボタンの両方から使う共通処理。
+function autoPlayFor(room, player) {
+  const game = room.game;
+  if (!game || game.winner != null || game.turn !== player) return false;
+  if (game.stage === 'setup-settlement') {
+    const v = game.vertices.find(item => validSettlement(game, item.id, player, true));
+    if (v) { act(room, player, 'placeSettlement', { vertex: v.id }); return true; }
+  } else if (game.stage === 'setup-road') {
+    const e = game.edges.find(item => validRoad(game, item.id, player, game.setupVertex));
+    if (e) { act(room, player, 'placeRoad', { edge: e.id }); return true; }
+  } else if (game.stage === 'roll') { act(room, player, 'roll'); return true; }
+  else if (game.stage === 'build') { act(room, player, 'endTurn'); return true; }
+  else if (game.stage === 'robber') {
+    const candidates = game.tiles.filter(t => t.id !== game.robberTile);
+    act(room, player, 'moveRobber', { tile: candidates[crypto.randomInt(candidates.length)].id });
+    return true;
+  } else if (game.stage === 'steal' && game.stealOptions?.length) {
+    act(room, player, 'steal', { victim: game.stealOptions[0] }); return true;
+  }
+  return false;
+}
+// 7の捨て札待ちを肩代わりする（手番の人以外も待たせるので別処理）
+function autoDiscardFor(room, player) {
+  const game = room.game;
+  if (!game || game.stage !== 'discard' || game.discard?.[player] == null) return false;
+  const hand = game.hands[player], sel = {};
+  let rem = game.discard[player];
+  for (const r of [...RESOURCES].sort((a, b) => hand[b] - hand[a])) { const n = Math.min(hand[r], rem); if (n > 0) { sel[r] = n; rem -= n; } if (!rem) break; }
+  act(room, player, 'discard', { resources: sel });
+  return true;
+}
+
 function scheduleIdleCheck(room) {
   clearTimeout(room.idleTimer);
   const game = room.game;
-  if (room.phase !== 'game' || !game || game.winner != null || room.players[game.turn]?.isBot) return;
+  room.turnDeadline = null;
+  if (room.phase !== 'game' || !game || game.winner != null) return;
+  // 捨て札待ちは手番がNPCでも人間を待たせるため、必ずタイマーを張る
+  const waitingDiscard = game.stage === 'discard' && Object.keys(game.discard || {}).length > 0;
+  if (!waitingDiscard && room.players[game.turn]?.isBot) return;
   const player = game.turn;
+  room.turnDeadline = Date.now() + TURN_LIMIT_MS;
   room.idleTimer = setTimeout(() => {
     try {
-      if (game.turn !== player || game.winner != null) return;
-      if (game.stage === 'setup-settlement') {
-        const v = game.vertices.find(item => validSettlement(game, item.id, player, true));
-        if (v) act(room, player, 'placeSettlement', { vertex: v.id });
-      } else if (game.stage === 'setup-road') {
-        const e = game.edges.find(item => validRoad(game, item.id, player, game.setupVertex));
-        if (e) act(room, player, 'placeRoad', { edge: e.id });
-      } else if (game.stage === 'roll') {
-        act(room, player, 'roll');
-      } else if (game.stage === 'build') {
-        act(room, player, 'endTurn');
-      } else if (game.stage === 'robber') {
-        const candidates = game.tiles.filter(t => t.id !== game.robberTile);
-        act(room, player, 'moveRobber', { tile: candidates[crypto.randomInt(candidates.length)].id });
-      } else if (game.stage === 'steal' && game.stealOptions?.length) {
-        act(room, player, 'steal', { victim: game.stealOptions[0] });
-      } else if (game.stage === 'discard' && game.discard?.[player] != null) {
-        const hand = game.hands[player], needed = game.discard[player], sel = {};
-        let rem = needed;
-        for (const r of [...RESOURCES].sort((a, b) => hand[b] - hand[a])) { const n = Math.min(hand[r], rem); if (n > 0) { sel[r] = n; rem -= n; } if (!rem) break; }
-        act(room, player, 'discard', { resources: sel });
-      }
-    } catch (e) { console.error('Idle auto-action failed:', e.message); }
-  }, 60000);
+      if (game.stage === 'discard') { Object.keys(game.discard || {}).forEach(p => autoDiscardFor(room, Number(p))); return; }
+      autoPlayFor(room, player);
+    } catch (e) { console.error('時間切れの自動処理に失敗:', e.message); }
+  }, TURN_LIMIT_MS);
   room.idleTimer.unref?.(); // プロセス終了を妨げない
+}
+
+// 「↻ 進まない時」: 詰まった局面を1手ぶん強制的に進めて再同期する。
+// オフラインの recoverGame() と同じ役割。有利にならない範囲で止まりだけ解消する。
+function recoverRoom(room) {
+  const game = room.game;
+  if (!game || game.winner != null) { touch(room); return; }
+  clearTimeout(room.botTimer); clearTimeout(room.idleTimer);
+  if (game.stage === 'discard') Object.keys(game.discard || {}).forEach(p => autoDiscardFor(room, Number(p)));
+  else if (room.players[game.turn]?.isBot) autoPlayFor(room, game.turn); // NPCが固まっていたら1手進める
+  touch(room);
 }
 function adjacentVertices(game, vertex) { return game.edges.filter(edge => edge.a === vertex || edge.b === vertex).map(edge => edge.a === vertex ? edge.b : edge.a); }
 function validSettlement(game, vertex, player, setup = false) {
@@ -670,7 +701,7 @@ function act(room, player, type, payload = {}) {
 }
 
 function publicState(room, playerId) {
-  const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, difficulty: room.difficulty, botSpeed: room.botSpeed, targetScore: room.targetScore || 10, expansion: room.expansion || null, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
+  const base = { code: room.code, phase: room.phase, host: room.host, you: playerId, version: room.version, boardMode: room.boardMode, difficulty: room.difficulty, botSpeed: room.botSpeed, turnDeadline: room.turnDeadline || null, turnLimitMs: TURN_LIMIT_MS, targetScore: room.targetScore || 10, expansion: room.expansion || null, players: room.players.map(player => ({ id: player.id, name: player.name, color: player.color, connected: player.connected, isBot: player.isBot })) };
   if (!room.game) return base;
   const game = room.game;
   return { ...base, game: { tiles: game.tiles, vertices: game.vertices, edges: game.edges, turn: game.turn, round: game.round, stage: game.stage, setupIndex: game.setupIndex, setupVertex: game.setupVertex, dice: game.dice, buildings: game.buildings, roads: game.roads, robberTile: game.robberTile, vp: room.players.map((_, i) => visibleVP(game, i)), winner: game.winner, cardCounts: game.hands.map(hand => Object.values(hand).reduce((a,b)=>a+b,0)), hand: game.hands[playerId], discardNeeded: game.discard?.[playerId] || 0, stealOptions: (game.stage === 'steal' && game.turn === playerId) ? game.stealOptions : null, harbors: game.harbors, harborEdges: game.harborEdges, rates: Object.fromEntries(RESOURCES.map(r => [r, maritimeRate(game, playerId, r)])), dev: game.dev[playerId], newDev: game.newDev[playerId], devCounts: room.players.map((_, i) => game.dev[i].length + game.newDev[i].length), playedKnights: game.playedKnights, largestArmyOwner: game.largestArmyOwner, longestRoadOwner: game.longestRoadOwner, freeRoads: game.turn === playerId ? game.freeRoads : 0, devDeckCount: game.devDeck.length, devPlayed: game.devPlayed[playerId], offers: room.offers.filter(offer => offer.from === playerId || offer.to === playerId) } };
@@ -727,7 +758,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
       const body = await readBody(request); const result = createRoom(body.name, body.boardMode, body.expansion, body.difficulty, body.targetScore); return json(response, 201, result.identity);
     }
-    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot|settings))?$/);
+    const match = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)(?:\/(join|start|action|state|events|addbot|settings|recover|leave))?$/);
     if (match) {
       const room = rooms.get(match[1]); if (!room) return json(response, 404, { error: 'ルームが見つかりません' });
       const operation = match[2] || 'state';
@@ -752,6 +783,20 @@ const server = http.createServer(async (request, response) => {
         if (keepAlive.unref) keepAlive.unref();
         request.on('close', () => { clearInterval(keepAlive); room.clients.delete(client); });
         return;
+      }
+      // 進まない時: 誰でも押せる（詰まりの解消なので有利不利は生まない）
+      if (operation === 'recover' && request.method === 'POST') {
+        recoverRoom(room); return json(response, 200, { ok: true });
+      }
+      // 抜ける: その席をNPCが引き継ぐ。ゲームは止めずに続行する。
+      if (operation === 'leave' && request.method === 'POST') {
+        player.isBot = true; player.connected = false;
+        if (!/NPC/.test(player.name)) player.name = `${player.name}(NPC)`;
+        if (room.host === player.id) { // ホストが抜けたら残っている人間へ引き継ぐ
+          const next = room.players.find(p => !p.isBot);
+          if (next) room.host = next.id;
+        }
+        touch(room); return json(response, 200, { ok: true });
       }
       if (operation === 'settings' && request.method === 'POST') {
         if (room.host !== player.id) throw new Error('ホストだけが設定できます');

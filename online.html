@@ -98,6 +98,7 @@
         <div class="turn-banner">
           <span class="turn-dot" id="turnDot"></span>
           <div><small>現在のターン</small><strong id="turnName">-</strong></div>
+          <span class="turn-timer" id="turnTimer"></span>
           <span class="turn-score" id="turnScore">- VP</span>
         </div>
         <div class="board-wrap">
@@ -114,6 +115,12 @@
           </button>
           <div class="dice-result" id="diceResult"><span>—</span><span>—</span></div>
           <button class="end-turn" id="endOnlineBtn" disabled>ターン終了 →</button>
+        </div>
+        <!-- オフラインと同じ操作ボタン列。盤に重ねずフロー内に置く（被り禁止ルール） -->
+        <div class="corner-controls online-cc">
+          <button class="cc-btn cc-recover" id="onlineRecoverBtn" title="進まなくなった時に押してください">↻ 進まない時</button>
+          <button class="cc-btn cc-rules" id="onlineRulesBtn">遊び方</button>
+          <button class="cc-btn cc-leave" id="leaveGameBtn" title="抜けるとNPCが引き継ぎます">🚪 ゲームから抜ける</button>
         </div>
         <div class="robber-confirm-overlay" id="robberConfirmOverlay" style="display:none">
           <span class="robber-confirm-hint">♟ この土地に盗賊を置く？</span>
@@ -273,6 +280,25 @@
       <p id="incomingTradeText" style="font-size:15px;margin:12px 0"></p>
       <button id="incomingTradeAccept">承認する ✓</button>
       <button class="cancel-link" id="incomingTradeReject">断る ✕</button>
+    </div>
+  </div>
+
+  <!-- 遊び方（オフラインと同じ内容） -->
+  <div class="modal-overlay" id="rulesOverlay" hidden>
+    <div class="modal-card rules-card">
+      <h3>遊び方</h3>
+      <div class="rules-list" id="onlineRulesBody"></div>
+      <button class="cancel-link" id="rulesCloseBtn">閉じる</button>
+    </div>
+  </div>
+
+  <!-- ゲームから抜ける確認 -->
+  <div class="modal-overlay" id="leaveOverlay" hidden>
+    <div class="modal-card">
+      <h3>🚪 ゲームから抜けますか？</h3>
+      <p>あなたの席は<b>NPCが引き継いで</b>ゲームは続きます。<br>抜けたあとは元の席に戻れません。</p>
+      <button id="leaveConfirmBtn">抜ける</button>
+      <button class="cancel-link" id="leaveCancelBtn">↩ やめる</button>
     </div>
   </div>
 
