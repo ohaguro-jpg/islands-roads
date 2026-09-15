@@ -42,17 +42,26 @@
 .dice-overlay-values b { width: 120px; height: 120px; display: grid; place-items: center; border: 3px solid var(--ink); border-radius: 22px; background: white; font-size: 64px; box-shadow: 0 10px 0 #d7d0bf; }
 .dice-overlay-card strong { font-size: 22px; }
 
-/* ===== SVG tile colors ===== */
-.tile{stroke:#f8f0dc;stroke-width:3}
-.tile.forest{fill:#4c7954}
-.tile.hills{fill:#a86143}
-.tile.pasture{fill:#91ad63}
-.tile.fields{fill:#d0ad4c}
-.tile.mountains{fill:#797d7c}
+/* ===== SVG tile colors =====
+   オフライン版(styles.css の .hex / .token / .tile-icon / .sea-ring)と
+   まったく同じ配色・サイズに揃えている。値を変えるときは両方直すこと。 */
+.tile{stroke:none;filter:url(#hexShadow)}
+.tile.forest{fill:#446f50}
+.tile.hills{fill:#a85b3c}
+.tile.pasture{fill:#8ca85c}
+.tile.fields{fill:#cfad4e}
+.tile.mountains{fill:url(#mountainsGrad)}
 .tile.desert{fill:#d8bd7c}
-.tile-number{fill:#fff3d1;stroke:#b8a878;stroke-width:1.5}
-.tile-num-text{fill:#3a2c08;font-weight:800;dominant-baseline:middle;text-anchor:middle}
-.tile-num-text.hot{fill:#b83c1c}
+.tile-texture{fill:url(#hexTexture);pointer-events:none}
+.tile-icon-svg{filter:grayscale(.2);pointer-events:none}
+.sea-ring-svg{fill:url(#seaGrad);filter:url(#seaShadow)}
+.sea-ring-inner{fill:none;stroke:#d2e9e5aa;stroke-width:1}
+.compass-svg{fill:#50706a;font-size:10px;text-anchor:middle;pointer-events:none}
+.compass-svg.mark{font-size:30px}
+/* 数字トークン: オフラインは 35px 円・#f7edcf・枠 #cbbd96 でタイル中央 */
+.tile-number{fill:#f7edcf;stroke:#cbbd96;stroke-width:1}
+.tile-num-text{fill:#17372f;font-weight:800;font-family:"Shippori Mincho",serif;dominant-baseline:central;text-anchor:middle}
+.tile-num-text.hot{fill:#a73e31}
 .edge-hit{stroke:transparent;stroke-width:18;cursor:pointer;fill:none}
 .road{stroke-linecap:round;paint-order:stroke}
 /* styles.css の .node{transform:translate(-50%,-50%)}（オフラインのHTML駒用）が

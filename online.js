@@ -215,16 +215,55 @@ function isAvailableEdge(edge){
 }
 
 // ===== BOARD RENDER =====
+// オフライン版と同じ見た目にするためのSVG定義（山のグラデ・海のグラデ・質感・影）
+// 数値は styles.css の .hex / .sea-ring と対応している。
+function boardDefs(){
+  const defs=document.createElementNS(svgNS,'defs');
+  defs.innerHTML=`
+    <linearGradient id="mountainsGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9aa1a6"/><stop offset="45%" stop-color="#5c6266"/>
+      <stop offset="70%" stop-color="#7d848a"/><stop offset="100%" stop-color="#4e5458"/>
+    </linearGradient>
+    <radialGradient id="seaGrad" cx="50%" cy="50%" r="62%">
+      <stop offset="20%" stop-color="#91bec1"/><stop offset="62%" stop-color="#5d9ba3"/>
+      <stop offset="100%" stop-color="#397986"/>
+    </radialGradient>
+    <pattern id="hexTexture" width="15" height="15" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <line x1="0" y1="14" x2="15" y2="14" stroke="#ffffff22" stroke-width="1.5"/>
+    </pattern>
+    <filter id="hexShadow" x="-25%" y="-25%" width="150%" height="165%">
+      <feDropShadow dx="0" dy="4" stdDeviation="1.5" flood-color="#243c31" flood-opacity=".19"/>
+    </filter>
+    <filter id="seaShadow" x="-25%" y="-25%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="20" stdDeviation="9" flood-color="#143f42" flood-opacity=".2"/>
+    </filter>`;
+  return defs;
+}
+// オフラインの .sea-ring を viewBox 700x660 に正確に写したもの。
+// オフライン: board 690x650 / sea は left45,top40,600x570 + clip-path の八角形。
+// オンラインは盤の中心が (350,330) で+5ずれるso sea は left50,top45,600x570 相当。
+const SEA_POINTS='200,68 500,68 638,193 638,467 500,592 200,592 62,467 62,193';
+// 内側の細い縁（オフラインの .sea-ring:after は inset:12px）
+const SEA_POINTS_INNER='206,79 494,79 627,199 627,461 494,581 206,581 74,461 74,199';
+
 function renderBoard(){
   const g=state.game, svg=$('#onlineBoardSvg');
   svg.innerHTML='';
+  svg.append(boardDefs());
+  // 海（オフラインと同じ八角形＋放射グラデ＋内側の細い縁）
+  svg.append(el('polygon',{points:SEA_POINTS,class:'sea-ring-svg'}));
+  svg.append(el('polygon',{points:SEA_POINTS_INNER,class:'sea-ring-inner'}));
   const TYPE_ICON={forest:'🌲',hills:'🧱',pasture:'🐑',fields:'🌾',mountains:'⛰',desert:'☀'};
   g.tiles.forEach(tile=>{
-    svg.append(el('polygon',{points:hexPoints(tile.x,tile.y),class:`tile ${tile.type}`}));
-    svg.append(el('text',{x:tile.x,y:tile.y-17,'text-anchor':'middle','font-size':25},TYPE_ICON[tile.type]));
+    const pts=hexPoints(tile.x,tile.y);
+    svg.append(el('polygon',{points:pts,class:`tile ${tile.type}`}));
+    svg.append(el('polygon',{points:pts,class:'tile-texture'}));
+    // アイコンはタイル上部（オフライン: hex上端から14px ≒ 中心の26px上）
+    svg.append(el('text',{x:tile.x,y:tile.y-26,'text-anchor':'middle','dominant-baseline':'central','font-size':31,class:'tile-icon-svg'},TYPE_ICON[tile.type]));
     if(tile.number){
-      svg.append(el('circle',{cx:tile.x,cy:tile.y+15,r:18,class:'tile-number'}));
-      svg.append(el('text',{x:tile.x,y:tile.y+21,'text-anchor':'middle','font-weight':800,fill:tile.number===6||tile.number===8?'#b44235':'#17372f'},tile.number));
+      // 数字トークンはタイル中央（オフラインの .token と同じ 35px 円）
+      svg.append(el('circle',{cx:tile.x,cy:tile.y,r:17.5,class:'tile-number'}));
+      svg.append(el('text',{x:tile.x,y:tile.y,'font-size':17,class:`tile-num-text${tile.number===6||tile.number===8?' hot':''}`},tile.number));
     }
   });
   (g.harborEdges||[]).forEach(({a,b,type})=>{

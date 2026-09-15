@@ -80,7 +80,8 @@
 
 /* ===== Board (SVG inside board-wrap) ===== */
 /* SVG のサイズは online.js の sizeBoard() がインラインで設定する（盤エリアに収める） */
-#onlineBoardSvg{display:block;margin:0 auto;touch-action:none;background:radial-gradient(ellipse 60% 58% at 50% 50%,#7fb3b8,#4d8a92);border-radius:26px}
+/* 海はSVG内に八角形で描く（オフラインの .sea-ring と同じ）ので背景は敷かない */
+#onlineBoardSvg{display:block;margin:0 auto;touch-action:none}
 /* ターンバナー・アクションバーは盤に重ねず、フロー内に置く（被り禁止ルール） */
 .turn-banner{position:static!important}
 .action-bar{position:static!important;bottom:auto!important;right:auto!important;transform:none!important;flex-direction:row;justify-content:center}
