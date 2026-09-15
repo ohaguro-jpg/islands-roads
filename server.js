@@ -749,6 +749,30 @@ function loadRooms() {
 
 function json(response, status, data) { response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data)); }
 function readBody(request) { return new Promise((resolve, reject) => { let body = ''; request.on('data', chunk => { body += chunk; if (body.length > 1e6) reject(new Error('too large')); }); request.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch { reject(new Error('JSONが不正です')); } }); }); }
+// 存在しないページ用の案内。ゲームへ戻る導線を必ず出す。
+function notFoundPage(response, pathname) {
+  const safe = String(pathname).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const html = `<!doctype html><html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>ページが見つかりません | ISLANDS &amp; ROADS</title>
+<style>
+ body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;
+      background:radial-gradient(circle at 50% 10%,#e1ebdb,#d4c6ae);color:#17372f}
+ .card{width:min(440px,100%);background:#fcfaf4;border:1px solid #c8bfa8;border-radius:22px;padding:36px 30px;text-align:center;box-shadow:0 24px 64px #19392f33}
+ h1{margin:0 0 8px;font-size:22px}
+ p{color:#74817c;font-size:13px;line-height:1.8;margin:0 0 22px}
+ code{background:#efe9dc;border-radius:5px;padding:2px 6px;font-size:12px}
+ a{display:block;margin-top:10px;padding:15px;border-radius:12px;text-decoration:none;font-weight:800;font-size:15px}
+ .on{background:#17372f;color:#fff}
+ .off{background:#faf7ec;color:#17372f;border:1px solid #c8bfa8}
+</style></head><body><div class="card">
+ <h1>🧭 ページが見つかりません</h1>
+ <p><code>${safe}</code> は存在しません。<br>古いブックマークかもしれません。下から遊べます。</p>
+ <a class="on" href="/online.html">🌐 オンラインで遊ぶ</a>
+ <a class="off" href="/offline.html">🏝️ オフラインで遊ぶ</a>
+</div></body></html>`;
+  response.writeHead(404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+  response.end(html);
+}
 function mime(file) { return file.endsWith('.html') ? 'text/html' : file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'application/octet-stream'; }
 
 const server = http.createServer(async (request, response) => {
@@ -817,7 +841,12 @@ const server = http.createServer(async (request, response) => {
     }
     const requested = url.pathname === '/' ? '/index.html' : url.pathname;
     const file = path.normalize(path.join(ROOT, requested));
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return json(response, 404, { error: 'Not found' });
+    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      // API は JSON のまま。ページを開いた人には迷子にならないよう案内を返す
+      // （古いブックマークやURLの打ち間違いで真っ黒なJSONが出るのを防ぐ）
+      if (url.pathname.startsWith('/api/')) return json(response, 404, { error: 'Not found' });
+      return notFoundPage(response, url.pathname);
+    }
     response.writeHead(200, { 'content-type': `${mime(file)}; charset=utf-8`, 'cache-control': 'no-cache' });
     fs.createReadStream(file).pipe(response);
   } catch (error) { json(response, 400, { error: error.message || '処理に失敗しました' }); }
