@@ -149,6 +149,7 @@ main,.board-wrap,.sidebar{height:calc(100vh - 150px)}
 .rules-my-hero{margin:8px 0;padding:8px 10px;border-radius:8px;background:#f0e8fc;border:1px solid #d7c4ee;color:#5a2487;font-size:13px}
 .rules-hero-list{margin:6px 0;padding-left:18px;line-height:1.7;font-size:12px}
 .rules-hero-list li{margin-bottom:3px}
+.rules-idea-ref{color:#5a7d88;font-weight:600}
 /* Hero Pack */
 .hero-badge{background:#f0e8fc;color:#6a2d9e}
 /* Barbarian Pack */

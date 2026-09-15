@@ -233,6 +233,13 @@ const T = {
     minPointsLabel: '最低点',
     minVp: '最低 {n} VP',
     minVpShort: '最低 {n}',
+    modeIdeasIntro: 'まだ実装していない、ブレインストーミング段階のアイデア集。いつか作るかもしれないメモ書き。',
+    modeIdeasNote: 'あくまで構想メモです。実際にゲームへ反映されるとは限りません。',
+    modeIdeasOniIntro: '桃太郎モチーフ、「力を溜めるフェーズ」→「鬼退治フェーズ」の2部構成のアドベンチャーモード案。以下はそのバリエーション。',
+    modeIdeasSectionGeneral: '汎用モード案',
+    modeIdeasSectionOni: '鬼退治大合戦（アドベンチャーモード）のバリエーション',
+    modeIdeasSectionOther: '鬼ヶ島以外の新テーマ案',
+    modeIdeasTitle: '💡 新モード構想',
     monopolyDialogBody: '選んだ資源を全プレイヤーから集めます。',
     monopolyDialogTitle: '独占：資源を1種類選ぶ',
     moveShipBtnLabel: '⛵ 船を移動（1ターン1回）',
@@ -471,6 +478,13 @@ const T = {
     minPointsLabel: 'min. points',
     minVp: 'min. {n} VP',
     minVpShort: 'min. {n}',
+    modeIdeasIntro: 'A brainstorm of ideas that aren\'t built yet — notes for something we might make someday.',
+    modeIdeasNote: 'Just concept notes. There\'s no promise any of this ships.',
+    modeIdeasOniIntro: 'A Momotaro-flavored adventure mode: "build up strength" then "hunt the demons." The variations below are different takes on that loop.',
+    modeIdeasSectionGeneral: 'General mode ideas',
+    modeIdeasSectionOni: 'Demon Hunt (adventure mode) variations',
+    modeIdeasSectionOther: 'New themes beyond Demon Island',
+    modeIdeasTitle: '💡 New Mode Ideas',
     monopolyDialogBody: 'Take all of the chosen resource from every player.',
     monopolyDialogTitle: 'Monopoly: choose a resource',
     moveShipBtnLabel: '⛵ Move ship (once per turn)',
@@ -3358,6 +3372,81 @@ function barbariansRulesHtml() {
     <p><small>${t('rulesBarbariansNote')}</small></p>
   </div>`;
 }
+
+// 未実装の新モード構想（ブレインストーミング）。実際のゲームロジックには一切関与しない、読み物専用データ。
+const MODE_IDEAS = {
+  general: [
+    { ja: { title: '霧の中の島', ref: 'Scythe、4X系', desc: '数字・資源タイプは最初は伏せられていて、自分の開拓地/街に隣接したマスだけ判明する。' },
+      en: { title: 'Fog of War', ref: 'Scythe, 4X games', desc: 'Tile numbers and resources stay hidden until a settlement or city of yours touches them.' } },
+    { ja: { title: 'せり式初期配置', ref: 'Power Grid、For Sale', desc: 'スネークドラフトの代わりに、いい土地をコイン(または将来ターンの手番権)でオークションする。' },
+      en: { title: 'Auction Setup', ref: 'Power Grid, For Sale', desc: 'Instead of a snake draft, bid coins (or a future turn order) to claim the best starting spots.' } },
+    { ja: { title: '沈みゆく島', ref: 'Pandemic、Spirit Island', desc: '毎ラウンド海面が上昇し、外周のマスから順に水没していく。協力モードにも奪い合いを加速するタイマーにもできる。' },
+      en: { title: 'Rising Tide', ref: 'Pandemic, Spirit Island', desc: 'The sea rises every round, drowning outer tiles first — works as a co-op crisis or a land-grab timer.' } },
+    { ja: { title: '陣営非対称モード', ref: 'Root、Scythe', desc: 'プレイヤーごとに固有の開始資源・建設コスト・パッシブ能力を持たせる(Heroesの発展版)。' },
+      en: { title: 'Asymmetric Factions', ref: 'Root, Scythe', desc: 'Each player gets unique starting resources, build costs, and a passive ability — a bigger version of Heroes.' } },
+    { ja: { title: 'ローグライク周回モード', ref: 'Slay the Spire', desc: '1人用、連戦するほどAIが強くなる。勝つとHeroや発展カードの永続強化(レリック的)を次戦に持ち越せる。' },
+      en: { title: 'Run-based Roguelike', ref: 'Slay the Spire', desc: 'Single-player, back-to-back matches against escalating AI. Wins carry a permanent relic-like upgrade into the next run.' } },
+    { ja: { title: '蛮族ホードモード', ref: 'Gloomhaven、Root', desc: '既存のBarbarians拡張を全員協力の防衛戦に転用。守りきったターン数や生存人口でスコアリング。' },
+      en: { title: 'Horde Defense', ref: 'Gloomhaven, Root', desc: 'Turns the Barbarians expansion into a fully co-op defense — score by rounds survived and population held.' } },
+    { ja: { title: '相場変動マーケット', ref: 'Chinatown、Container', desc: '銀行との交換レートが需要(直近の交換履歴)で変動する。' },
+      en: { title: 'Fluctuating Market', ref: 'Chinatown, Container', desc: 'Bank exchange rates shift with recent trading activity instead of staying fixed.' } },
+    { ja: { title: '同時進行スピードモード', ref: 'Suburbia、リアルタイム系', desc: '制限時間内に全員が同時に行動を決定し、まとめて処理する。' },
+      en: { title: 'Simultaneous Turns', ref: 'Suburbia, real-time games', desc: 'Everyone decides their move within a time limit, resolved together — no waiting your turn.' } },
+  ],
+  oniVariants: [
+    { ja: { title: '討伐帳と鍛冶', ref: 'モンスターハンター', desc: '小鬼を倒すと素材ドロップ→資源と合わせて武器を鍛冶。武器ランクが一定以上でないと大鬼に挑めない。' },
+      en: { title: 'Bounty & Forge', ref: 'Monster Hunter', desc: 'Beating small demons drops materials to forge weapons; you need a high enough rank to face the boss.' } },
+    { ja: { title: '遠征すごろく', ref: 'Talisman、Above and Below', desc: '島とは別に「討伐ルート」の一本道トラック。資源を消費してパーティを送り出し、遭遇カードを引く。' },
+      en: { title: 'Expedition Track', ref: 'Talisman, Above and Below', desc: 'A separate linear track for the quest — spend resources to send a party out and draw encounter cards.' } },
+    { ja: { title: '群れ討伐・波状防衛', ref: 'Kingdom Death: Monster、タワーディフェンス系', desc: 'ラウンドごとに外周から小鬼の群れが街道沿いに侵攻。武器化した騎士カードで街に着く前に迎撃、防いだ波の数でスコア。' },
+      en: { title: 'Horde Waves', ref: 'Kingdom Death: Monster, tower defense', desc: 'Waves of small demons march in along the roads each round; intercept them with knight cards before they reach a city.' } },
+    { ja: { title: '鬼の巣攻略', ref: 'Gloomhaven、ゼルダの祠', desc: '強さが一定に達すると別マップの「鬼の巣」が解放。部屋を1つずつ突破する空間パズル寄りの討伐。' },
+      en: { title: 'Dungeon Delve', ref: 'Gloomhaven, Zelda shrines', desc: 'Once strong enough, unlock a separate mini-map "lair" and clear it room by room — more spatial puzzle than dice roll.' } },
+    { ja: { title: '武器合成コレクション', ref: 'Slay the Spire、Diablo', desc: '小鬼を倒すと属性付き「武器の欠片」がドロップ。集めて上位武器に合成するデッキビルド式。' },
+      en: { title: 'Fragment Fusion', ref: 'Slay the Spire, Diablo', desc: 'Small demons drop elemental weapon fragments that fuse into stronger gear, deckbuilder-style.' } },
+  ],
+  other: [
+    { ja: { title: 'キャラバン交易ルート', ref: 'Century: Spice Road、Le Havre', desc: '戦闘なしの純経済モード。島の外に隊商ルートを敷いて資源を加工しながら遠い市場まで運ぶほど高値がつく。' },
+      en: { title: 'Silk Road Caravan', ref: 'Century: Spice Road, Le Havre', desc: 'A pure economy mode with no combat — run caravan routes off the island, refining goods for better prices the farther they travel.' } },
+    { ja: { title: '私掠船・拿捕モード', ref: 'Sid Meier\'s Pirates!、Merchant of Venus', desc: 'Seafarers拡張を使い、船を持つ相手の海上輸送を襲って積荷を奪える。護衛・保険で対抗も可能。' },
+      en: { title: 'Privateer Raid', ref: "Sid Meier's Pirates!, Merchant of Venus", desc: 'Using the Seafarers expansion, raid an opponent\'s shipping to steal cargo — countered by escorts or insurance.' } },
+    { ja: { title: '四季の収穫祭', ref: 'Agricola、牧場物語', desc: 'ターンが四季で巡り季節ごとに強い/弱い資源が入れ替わる(冬は生産半減で備蓄が重要)。' },
+      en: { title: 'Seasonal Harvest', ref: 'Agricola, Harvest Moon', desc: 'Turns cycle through seasons that boost or weaken resources — winter halves production, so stockpiling matters.' } },
+    { ja: { title: '人狼カタン・隠密工作', ref: 'Rootの破壊工作、人狼ゲーム', desc: '1人だけ密かに「工作員」として配られ、表向きは普通にプレイしつつ他人の道や港をこっそり妨害する。' },
+      en: { title: 'Shadow Ops', ref: "Root's sabotage, social-deduction games", desc: 'One secret saboteur plays normally on the surface while quietly sabotaging others\' roads and harbors.' } },
+    { ja: { title: '宇宙移民・惑星開拓', ref: 'Terraforming Mars、Space Base', desc: '丸ごとSFリスキン。資源→水/金属/エネルギー/酸素/レア鉱物、発展カード→テック研究ツリー、盗賊→隕石衝突。' },
+      en: { title: 'Space Colony', ref: 'Terraforming Mars, Space Base', desc: 'A full sci-fi reskin: resources become water/metal/energy/oxygen/rare minerals, dev cards become a tech tree, the robber becomes a meteor strike.' } },
+  ],
+};
+function modeIdeaCard(idea) {
+  const d = LANG === 'en' ? idea.en : idea.ja;
+  return `<li><b>${d.title}</b> <small class="rules-idea-ref">— ${d.ref}</small><br>${d.desc}</li>`;
+}
+function modeIdeasHtml() {
+  return `<h2>${t('modeIdeasTitle')}</h2>
+    <p style="color:#74817c;font-size:13px;margin:-4px 0 6px">${t('modeIdeasIntro')}</p>
+    <div class="rules-list">
+      <div class="rules-seafarers">
+        <p class="rules-expansion-title">🎲 ${t('modeIdeasSectionGeneral')}</p>
+        <ul class="rules-hero-list">${MODE_IDEAS.general.map(modeIdeaCard).join('')}</ul>
+      </div>
+      <div class="rules-seafarers">
+        <p class="rules-expansion-title">👹 ${t('modeIdeasSectionOni')}</p>
+        <p>${t('modeIdeasOniIntro')}</p>
+        <ul class="rules-hero-list">${MODE_IDEAS.oniVariants.map(modeIdeaCard).join('')}</ul>
+      </div>
+      <div class="rules-seafarers">
+        <p class="rules-expansion-title">🗺 ${t('modeIdeasSectionOther')}</p>
+        <ul class="rules-hero-list">${MODE_IDEAS.other.map(modeIdeaCard).join('')}</ul>
+      </div>
+      <p><small>${t('modeIdeasNote')}</small></p>
+    </div>`;
+}
+if ($('#ideasBtn')) $('#ideasBtn').onclick = () => {
+  $('#modalContent').innerHTML = modeIdeasHtml();
+  $('#modal').showModal();
+};
+
 $('#rulesBtn').onclick = () => {
   $('#modalContent').innerHTML = `<h2>${t('howToPlay')}</h2><div class="rules-list">
     <p>${t('rulesGoal')}</p>

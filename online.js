@@ -1,6 +1,8 @@
 const ICONS = { wood:'🌲', brick:'🧱', wheat:'🌾', sheep:'🐑', ore:'⛏' };
 const RES_NAMES = { wood:'木材', brick:'レンガ', wheat:'小麦', sheep:'羊毛', ore:'鉱石' };
 const COLORS_LIST = Object.keys(ICONS);
+const COSTS = { road:{wood:1,brick:1}, settlement:{wood:1,brick:1,wheat:1,sheep:1}, city:{wheat:2,ore:3}, development:{wheat:1,sheep:1,ore:1} };
+function canAfford(type){ const h=(state&&state.game&&state.game.hand)||{}; return Object.entries(COSTS[type]).every(([r,n])=>(h[r]||0)>=n); }
 let session = JSON.parse(localStorage.getItem('islands-online-session') || 'null');
 let state = null, source = null, buildMode = null, lastDiceSignature = null, diceOverlayTimer = null;
 let pendingRobberTile = null, svgScale = 1, pendingIncomingOffer = null;
@@ -536,10 +538,13 @@ function renderBuildButtons(){
   const g=state.game, mine=g.turn===state.you&&g.stage==='build';
   ['road','settlement','city'].forEach(mode=>{
     const btn=$(`#${mode}ModeBtn`);
-    btn.disabled=!mine;
+    // オフラインと同じく、自分の手番(build中)でも資源が足りなければボタンを薄くする。
+    // 街道は発展カード「街道建設」で無料設置できる間は資源が無くても押せる。
+    const free=mode==='road'&&g.freeRoads>0;
+    btn.disabled=!mine||(!free&&!canAfford(mode));
     btn.classList.toggle('selected', buildMode===mode);
   });
-  $('#buyDevBtn').disabled=!state.game||(()=>{ const g=state.game,mine=g.turn===state.you&&g.stage==='build',h=g.hand; return !(mine&&g.devDeckCount>0&&h.wheat>=1&&h.sheep>=1&&h.ore>=1); })();
+  $('#buyDevBtn').disabled=!(mine&&g.devDeckCount>0&&canAfford('development'));
 }
 
 // ===== MAIN RENDER =====
@@ -553,7 +558,7 @@ function render(){
   renderTurnBanner();
   renderDice();
   renderBoard();
-  fitSvg();
+  sizeBoard();
   renderBank();
   renderDev();
   renderBuildButtons();
@@ -580,23 +585,24 @@ function render(){
 }
 
 // ===== SVG SIZING =====
-// aspect-ratio CSS は SVG 要素でブラウザに無視されるため JS で計算する
-function fitSvg(){
-  const svg=$('#onlineBoardSvg');
-  if(svgScale!==1) return; // zoom が明示サイズを管理
+// SVG は CSS の aspect-ratio が効かないため JS で「盤エリアに収まる」サイズを計算する。
+// オフラインと同じく、ズーム倍率1.0のときは盤エリア(width/height)の両方に収める＝スクロール不要。
+function fitScale(){
   const bw=document.querySelector('.board-wrap');
-  const w=Math.min(700, bw ? bw.clientWidth : window.innerWidth);
-  svg.style.width=w+'px';
-  svg.style.height=Math.round(w*660/700)+'px';
+  if(!bw||!bw.clientWidth||!bw.clientHeight) return 1;
+  const s=Math.min((bw.clientWidth-6)/700, (bw.clientHeight-6)/660);
+  return s>0&&isFinite(s)?s:1;
 }
-window.addEventListener('resize', fitSvg);
-
-// ===== ZOOM =====
-function applyZoom(){
+function sizeBoard(){
   const svg=$('#onlineBoardSvg');
-  svg.style.width=`${Math.round(700*svgScale)}px`;
-  svg.style.height=`${Math.round(660*svgScale)}px`;
+  if(!svg) return;
+  const s=Math.max(0.3, fitScale())*svgScale;
+  svg.style.width=`${Math.round(700*s)}px`;
+  svg.style.height=`${Math.round(660*s)}px`;
+  const bw=document.querySelector('.board-wrap');
+  if(bw) bw.style.overflow=svgScale>1?'auto':'hidden'; // ズーム時のみスクロール可
 }
+window.addEventListener('resize', sizeBoard);
 
 // ===== EVENT WIRING =====
 // Lobby
@@ -707,8 +713,8 @@ $('#robberConfirmBtn').onclick=confirmRobber;
 $('#robberCancelBtn').onclick=cancelRobber;
 
 // Zoom
-$('#onlineZoomIn').onclick=()=>{ svgScale=Math.min(1.5,+(svgScale+0.1).toFixed(1)); applyZoom(); };
-$('#onlineZoomOut').onclick=()=>{ svgScale=Math.max(0.6,+(svgScale-0.1).toFixed(1)); applyZoom(); };
+$('#onlineZoomIn').onclick=()=>{ svgScale=Math.min(2,+(svgScale+0.15).toFixed(2)); sizeBoard(); };
+$('#onlineZoomOut').onclick=()=>{ svgScale=Math.max(0.6,+(svgScale-0.15).toFixed(2)); sizeBoard(); };
 
 // Invite
 async function copyInvite(){

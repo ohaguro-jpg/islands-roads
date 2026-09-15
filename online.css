@@ -78,21 +78,34 @@
 .trade-hint{display:block;margin-top:8px;font-size:10px;color:#84908b;line-height:1.4}
 .my-harbors{display:block;margin-top:6px;font-size:10px;color:#7c8983}
 
-/* ===== Layout override: online は page-scroll 方式 ===== */
-/* styles.css の main{height:calc(100vh-150px)} が media-query の height:auto を
-   上書きして game-stage を 20px に潰すため、ここで解除する */
-main{height:auto!important}
-.sidebar{height:auto!important;overflow-y:visible!important}
-.game-stage{min-height:0!important;overflow:visible!important}
-
 /* ===== Board (SVG inside board-wrap) ===== */
-.board-wrap{display:block!important;height:auto!important;overflow:visible;padding:4px 0;position:relative}
-#onlineBoardSvg{display:block;width:min(700px,100%);margin:0 auto;touch-action:none;background:radial-gradient(ellipse 60% 58% at 50% 50%,#7fb3b8,#4d8a92);border-radius:26px}
+/* SVG のサイズは online.js の sizeBoard() がインラインで設定する（盤エリアに収める） */
+#onlineBoardSvg{display:block;margin:0 auto;touch-action:none;background:radial-gradient(ellipse 60% 58% at 50% 50%,#7fb3b8,#4d8a92);border-radius:26px}
+/* ターンバナー・アクションバーは盤に重ねず、フロー内に置く（被り禁止ルール） */
+.turn-banner{position:static!important}
+.action-bar{position:static!important;bottom:auto!important;right:auto!important;transform:none!important;flex-direction:row;justify-content:center}
 
-/* ===== ターンバナー・アクションバーをフローに戻す ===== */
-/* 絶対配置だと game-stage の高さに影響しないため、online では static に */
-.turn-banner{position:static!important;margin:10px 14px 4px}
-.action-bar{position:static!important;bottom:auto!important;right:auto!important;transform:none!important;flex-direction:row;margin:8px 14px;justify-content:center}
+/* ===== Desktop: オフラインと同じく1画面に収める（ページスクロール不要）===== */
+/* app-shell を縦フレックスにすると、topbar/手札バーの高さに関係なく
+   main が残りの高さをちょうど占め、盤とサイドバーが画面内に収まる。 */
+@media(min-width:1051px){
+  .app-shell{height:100vh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .topbar,.hand-bar{flex:0 0 auto}
+  main{flex:1 1 auto;min-height:0;height:auto!important;display:grid;grid-template-columns:1fr 320px}
+  .game-stage{min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:6px 10px 8px}
+  .turn-banner{margin:4px auto 6px}
+  .board-wrap{flex:1 1 auto;min-height:0;height:auto!important;display:grid;place-items:center;position:relative;padding:0;overflow:hidden}
+  .action-bar{margin:6px auto 0;gap:10px}
+  .notice{flex:0 0 auto;text-align:center}
+  .sidebar{height:auto!important;min-height:0;overflow-y:auto!important}
+}
+
+/* ===== スマホ・タブレット(<=1050px): styles.css の縦積み/ページスクロールに任せる ===== */
+@media(max-width:1050px){
+  .board-wrap{position:relative;padding:4px 0}
+  .turn-banner{margin:8px auto 4px}
+  .action-bar{margin:8px 14px}
+}
 .zoom-controls{position:absolute;right:12px;bottom:12px}
 
 /* ===== Modals ===== */
