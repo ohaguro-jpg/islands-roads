@@ -465,6 +465,44 @@ run(`(() => {
 })()`);
 console.log('sage picks 1 of 3 test: PASS');
 
+// 百戦の騎士団長: 最大騎士力の判定で騎士を+1枚多く数える（騎士2枚で獲得できる）。
+// ただし実際の playedKnights は増えない＝蛮族防衛には効かない。
+run(`(() => {
+  const savedHeroes = state.players.map(p => p.hero), savedKnights = state.players.map(p => p.playedKnights),
+        savedOwner = state.largestArmyOwner, savedOver = state.gameOver, savedVp = state.players.map(p => p.vp);
+  gameConfig.expansionHeroes = true;
+  state.players.forEach(p => { p.hero = null; p.playedKnights = 0; p.vp = 0; });
+  state.largestArmyOwner = null; state.gameOver = false;
+
+  // 通常プレイヤーは騎士2枚では最大騎士力を取れない
+  state.players[1].playedKnights = 2;
+  updateAwards();
+  if (state.largestArmyOwner === 1) throw new Error('通常プレイヤーが騎士2枚で最大騎士力を取ってしまった');
+
+  // 騎士団長なら騎士2枚で取れる
+  state.players[1].hero = 'commander';
+  updateAwards();
+  if (state.largestArmyOwner !== 1) throw new Error('★騎士団長が騎士2枚で最大騎士力を取れない');
+  if (state.players[1].playedKnights !== 2) throw new Error('騎士団長で実際の騎士枚数が増えてしまった');
+
+  // 騎士0枚では取れない（+1されても1枚扱いなので3に届かない）
+  state.players[1].playedKnights = 0;
+  updateAwards();
+  if (state.largestArmyOwner === 1) throw new Error('★騎士団長が騎士0枚で最大騎士力を取れてしまった');
+
+  // 通常プレイヤーが騎士3枚なら、騎士団長(2枚=実質3)と同点でも先に持っていた側が保持する
+  state.players[1].hero = 'commander'; state.players[1].playedKnights = 2;
+  updateAwards();
+  state.players[2].playedKnights = 3;
+  updateAwards();
+  if (state.largestArmyOwner !== 1) throw new Error('同点なのに最大騎士力が移動してしまった');
+
+  state.players.forEach((p, i) => { p.hero = savedHeroes[i]; p.playedKnights = savedKnights[i]; p.vp = savedVp[i]; });
+  state.largestArmyOwner = savedOwner; state.gameOver = savedOver;
+  gameConfig.expansionHeroes = false;
+})()`);
+console.log('knight commander test: PASS');
+
 // 詰まり回帰: NPCの交換提案など「閉じられない必須モーダル」が開いている間は、
 // blockingModalOpen が true になり自動進行（ハートビート/ウォッチドッグ）が止まること。
 // また「進まない時」ボタン(recoverGame)で確実に解除できること。

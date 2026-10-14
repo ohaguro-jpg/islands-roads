@@ -77,7 +77,8 @@ const HEROES_EN = {
   guardian:     { name: 'Unbreakable Guardian', desc: 'Never loses resources to the robber or pirate; production continues even with the robber on your tile' },
   gambler:      { name: 'Lucky Gambler',      desc: 'On your turn, roll the dice 3 times and pick your favorite while watching the board' },
   taxman:       { name: 'Greedy Taxman',      desc: 'Steals 2 cards instead of 1 when a 7 is rolled (not with a knight card)' },
-  harbormaster: { name: 'Harbor Master',      desc: 'If you own at least one harbor, every bank/port trade becomes 2:1' }
+  harbormaster: { name: 'Harbor Master',      desc: 'If you own at least one harbor, every bank/port trade becomes 2:1' },
+  commander:    { name: 'Knight Commander',   desc: 'Counts as one extra knight for Largest Army (2 knights are enough)' }
 };
 const HEROES = [
   { id: 'general',     icon: '🗡', get name() { return LANG === 'en' ? HEROES_EN.general.name : '歴戦の将軍'; },     get desc() { return LANG === 'en' ? HEROES_EN.general.desc : '手札が 15 枚以下なら 7 が出ても捨て不要（16 枚以上で半分捨て）'; } },
@@ -87,11 +88,14 @@ const HEROES = [
   { id: 'gambler',     icon: '🎲', get name() { return LANG === 'en' ? HEROES_EN.gambler.name : '強運の博徒'; },     get desc() { return LANG === 'en' ? HEROES_EN.gambler.desc : '自分の手番、ダイスを 3 回ふって盤面を見ながら好きな 1 つを選べる'; } },
   { id: 'taxman',      icon: '💰', get name() { return LANG === 'en' ? HEROES_EN.taxman.name : '強欲の徴税官'; },    get desc() { return LANG === 'en' ? HEROES_EN.taxman.desc : '7 が出て盗む時だけ、1 枚ではなく 2 枚奪える（騎士カードでは 1 枚）'; } },
   { id: 'harbormaster', icon: '🌊', get name() { return LANG === 'en' ? HEROES_EN.harbormaster.name : '港の主'; },   get desc() { return LANG === 'en' ? HEROES_EN.harbormaster.desc : '港を 1 つでも持っていれば、銀行・港との交換が全資源 2:1'; } },
+  { id: 'commander',   icon: '⚔', get name() { return LANG === 'en' ? HEROES_EN.commander.name : '百戦の騎士団長'; }, get desc() { return LANG === 'en' ? HEROES_EN.commander.desc : '最大騎士力の判定で騎士カードを 1 枚多く数える（騎士 2 枚で獲得できる）'; } },
 ];
 // Hero is only set when the expansion is on; helpers used by robber/steal logic.
 function robbable(player) { return state.players[player]?.hero !== 'guardian'; }   // guardian can't be stolen from
 // 強欲の徴税官が2枚奪えるのは「7が出た時」だけ。騎士カードで動かした盗賊では1枚（説明文どおり）。
 function stealCount(player) { return state.players[player]?.hero === 'taxman' && state.sevenSteal ? 2 : 1; }
+// 百戦の騎士団長は最大騎士力の判定だけ騎士を1枚多く数える（手札の実枚数は増えない）
+function knightPower(player) { return (state.players[player]?.playedKnights || 0) + (state.players[player]?.hero === 'commander' ? 1 : 0); }
 
 // Translation dictionary for toasts / dialogs / other dynamic (non-HTML-authored) strings.
 // Static HTML text lives in the .html files as data-ja/data-en (see applyI18n below).
@@ -2930,7 +2934,7 @@ function showMonopolyDialog() {
 // どのカードを使うと今一番得か採点する（smart系の判断力向上。手札の並び順で決め打ちしない）。
 function devCardPriorityScore(player, card) {
   if (card === 'knight') {
-    const reaches3 = state.players[player].playedKnights + 1 >= 3;
+    const reaches3 = knightPower(player) + 1 >= 3; // 騎士団長は実質2枚で届く
     const contested = state.largestArmyOwner !== player && reaches3; // 最大騎士力+2点を今取れる/守れる
     return contested ? 9 : 5;
   }
@@ -2991,7 +2995,7 @@ function updateAwards() {
     const leaders = roadLengths.map((length, player) => ({ length, player })).filter(item => item.length === roadBest);
     if (!leaders.some(item => item.player === state.longestRoadOwner)) state.longestRoadOwner = leaders.length === 1 ? leaders[0].player : null;
   } else state.longestRoadOwner = null;
-  const armies = state.players.map(player => player.playedKnights);
+  const armies = state.players.map((_, player) => knightPower(player));
   const armyBest = Math.max(...armies);
   if (armyBest >= 3) {
     const leaders = armies.map((size, player) => ({ size, player })).filter(item => item.size === armyBest);
