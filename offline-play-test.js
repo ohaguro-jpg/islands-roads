@@ -411,15 +411,59 @@ run(`(() => {
   state.players[0].resources = { wood: 3, brick: 0, wheat: 0, sheep: 0, ore: 0 };
   state.players[3].resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 };
   state.turn = 3;
+  state.sevenSteal = true; // 7由来の盗み
   stealFromVictim(0);
-  if (state.players[3].resources.wood !== 2) throw new Error('徴税官が2枚奪わない=' + state.players[3].resources.wood);
+  if (state.players[3].resources.wood !== 2) throw new Error('徴税官が7で2枚奪わない=' + state.players[3].resources.wood);
+
+  // 徴税官の2枚は7限定。騎士カード由来(sevenSteal=false)では1枚だけ。
+  state.players[0].resources = { wood: 3, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  state.players[3].resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  state.sevenSteal = false;
+  stealFromVictim(0);
+  if (state.players[3].resources.wood !== 1) throw new Error('★徴税官が騎士カードでも2枚奪ってしまう=' + state.players[3].resources.wood);
 
   // 後片付け
   state.players.forEach(p => { p.hero = p._hero; p.bot = p._bot; p.resources = p._res; delete p._hero; delete p._bot; delete p._res; });
   state.harbors = savedHarbors; state.turn = savedTurn; state.resolvingSeven = false; state.discardQueue = null;
+  state.sevenSteal = false;
   gameConfig.expansionHeroes = false;
 })()`);
 console.log('heroes (yuji original) test: PASS');
+
+// 古の賢者: 購入時に3枚引いて1枚キープ、残り2枚は山札に戻る（山札の総数が減るのは1枚だけ）。
+run(`(() => {
+  const savedDeck = state.devDeck, savedHero = state.players[1].hero, savedBot = state.players[1].bot,
+        savedRes = state.players[1].resources, savedNewDev = state.players[1].newDev, savedBank = state.bank;
+  gameConfig.expansionHeroes = true;
+  state.players[1].hero = 'sage';
+  state.players[1].bot = true; // bot経路なら自動で1枚選ぶのでダイアログ無しで検証できる
+  state.players[1].newDev = [];
+  state.players[1].resources = { wood: 0, brick: 0, wheat: 1, sheep: 1, ore: 1 };
+  state.bank = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  state.devDeck = ['monopoly', 'monopoly', 'plenty', 'knight', 'victory'];
+  const before = state.devDeck.length;
+  buyDevelopment(1);
+  if (state.players[1].newDev.length !== 1) throw new Error('賢者: 1枚キープになっていない');
+  if (state.devDeck.length !== before - 1) throw new Error('★賢者: 選ばなかったカードが山札に戻っていない deck=' + state.devDeck.length);
+  // 山札の末尾3枚は victory/knight/plenty。botは victory を最優先でキープするはず
+  if (state.players[1].newDev[0] !== 'victory') throw new Error('賢者(bot): 3枚から最良を選べていない=' + state.players[1].newDev[0]);
+  // 残り2枚(knight/plenty)は底に戻っているので、先頭側に存在する
+  if (!state.devDeck.slice(0, 2).includes('knight') || !state.devDeck.slice(0, 2).includes('plenty')) {
+    throw new Error('★賢者: 戻したカードが山札の底にない deck=' + JSON.stringify(state.devDeck));
+  }
+
+  // 山札が残り2枚でも落ちない（2枚から選ぶ）
+  state.players[1].newDev = [];
+  state.players[1].resources = { wood: 0, brick: 0, wheat: 1, sheep: 1, ore: 1 };
+  state.devDeck = ['knight', 'victory'];
+  buyDevelopment(1);
+  if (state.players[1].newDev.length !== 1 || state.devDeck.length !== 1) throw new Error('★賢者: 山札2枚の時の処理が壊れている');
+
+  state.devDeck = savedDeck; state.players[1].hero = savedHero; state.players[1].bot = savedBot;
+  state.players[1].resources = savedRes; state.players[1].newDev = savedNewDev; state.bank = savedBank;
+  gameConfig.expansionHeroes = false;
+})()`);
+console.log('sage picks 1 of 3 test: PASS');
 
 // 詰まり回帰: NPCの交換提案など「閉じられない必須モーダル」が開いている間は、
 // blockingModalOpen が true になり自動進行（ハートビート/ウォッチドッグ）が止まること。

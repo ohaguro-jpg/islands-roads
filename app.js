@@ -73,24 +73,25 @@ const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
 const HEROES_EN = {
   general:      { name: 'Veteran General',    desc: 'No discard on a 7 with 15 cards or fewer (half discarded at 16+)' },
   architect:    { name: 'Master Architect',   desc: 'Roads cost only 1 brick (no wood needed)' },
-  sage:         { name: 'Ancient Sage',       desc: 'Draw 2 development cards when buying and keep your favorite' },
-  guardian:     { name: 'Unbreakable Guardian', desc: 'Never loses resources to the robber; production continues even with the robber on your tile' },
+  sage:         { name: 'Ancient Sage',       desc: 'Draw 3 development cards when buying and keep your favorite' },
+  guardian:     { name: 'Unbreakable Guardian', desc: 'Never loses resources to the robber or pirate; production continues even with the robber on your tile' },
   gambler:      { name: 'Lucky Gambler',      desc: 'On your turn, roll the dice 3 times and pick your favorite while watching the board' },
-  taxman:       { name: 'Greedy Taxman',      desc: 'Steals 2 cards when robbing with a 7' },
-  harbormaster: { name: 'Harbor Master',      desc: 'Bank/port trades are 2:1 for every resource' }
+  taxman:       { name: 'Greedy Taxman',      desc: 'Steals 2 cards instead of 1 when a 7 is rolled (not with a knight card)' },
+  harbormaster: { name: 'Harbor Master',      desc: 'If you own at least one harbor, every bank/port trade becomes 2:1' }
 };
 const HEROES = [
   { id: 'general',     icon: '🗡', get name() { return LANG === 'en' ? HEROES_EN.general.name : '歴戦の将軍'; },     get desc() { return LANG === 'en' ? HEROES_EN.general.desc : '手札が 15 枚以下なら 7 が出ても捨て不要（16 枚以上で半分捨て）'; } },
   { id: 'architect',   icon: '🏗', get name() { return LANG === 'en' ? HEROES_EN.architect.name : '天才建築家'; },   get desc() { return LANG === 'en' ? HEROES_EN.architect.desc : '街道の建設コストがレンガ 1 枚のみ（木材不要）'; } },
-  { id: 'sage',        icon: '🔮', get name() { return LANG === 'en' ? HEROES_EN.sage.name : '古の賢者'; },          get desc() { return LANG === 'en' ? HEROES_EN.sage.desc : '発展カード購入時に 2 枚引いて好きな 1 枚を選べる'; } },
-  { id: 'guardian',    icon: '🛡', get name() { return LANG === 'en' ? HEROES_EN.guardian.name : '不屈の守人'; },    get desc() { return LANG === 'en' ? HEROES_EN.guardian.desc : '盗賊で資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない'; } },
+  { id: 'sage',        icon: '🔮', get name() { return LANG === 'en' ? HEROES_EN.sage.name : '古の賢者'; },          get desc() { return LANG === 'en' ? HEROES_EN.sage.desc : '発展カード購入時に 3 枚引いて好きな 1 枚を選べる'; } },
+  { id: 'guardian',    icon: '🛡', get name() { return LANG === 'en' ? HEROES_EN.guardian.name : '不屈の守人'; },    get desc() { return LANG === 'en' ? HEROES_EN.guardian.desc : '盗賊・海賊に資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない（7 の捨て札は通常どおり）'; } },
   { id: 'gambler',     icon: '🎲', get name() { return LANG === 'en' ? HEROES_EN.gambler.name : '強運の博徒'; },     get desc() { return LANG === 'en' ? HEROES_EN.gambler.desc : '自分の手番、ダイスを 3 回ふって盤面を見ながら好きな 1 つを選べる'; } },
-  { id: 'taxman',      icon: '💰', get name() { return LANG === 'en' ? HEROES_EN.taxman.name : '強欲の徴税官'; },    get desc() { return LANG === 'en' ? HEROES_EN.taxman.desc : '7 を出して盗む時、2 枚奪える'; } },
-  { id: 'harbormaster', icon: '🌊', get name() { return LANG === 'en' ? HEROES_EN.harbormaster.name : '港の主'; },   get desc() { return LANG === 'en' ? HEROES_EN.harbormaster.desc : '銀行・港との交換が全資源 2:1'; } },
+  { id: 'taxman',      icon: '💰', get name() { return LANG === 'en' ? HEROES_EN.taxman.name : '強欲の徴税官'; },    get desc() { return LANG === 'en' ? HEROES_EN.taxman.desc : '7 が出て盗む時だけ、1 枚ではなく 2 枚奪える（騎士カードでは 1 枚）'; } },
+  { id: 'harbormaster', icon: '🌊', get name() { return LANG === 'en' ? HEROES_EN.harbormaster.name : '港の主'; },   get desc() { return LANG === 'en' ? HEROES_EN.harbormaster.desc : '港を 1 つでも持っていれば、銀行・港との交換が全資源 2:1'; } },
 ];
 // Hero is only set when the expansion is on; helpers used by robber/steal logic.
 function robbable(player) { return state.players[player]?.hero !== 'guardian'; }   // guardian can't be stolen from
-function stealCount(player) { return state.players[player]?.hero === 'taxman' ? 2 : 1; } // taxman robs 2
+// 強欲の徴税官が2枚奪えるのは「7が出た時」だけ。騎士カードで動かした盗賊では1枚（説明文どおり）。
+function stealCount(player) { return state.players[player]?.hero === 'taxman' && state.sevenSteal ? 2 : 1; }
 
 // Translation dictionary for toasts / dialogs / other dynamic (non-HTML-authored) strings.
 // Static HTML text lives in the .html files as data-ja/data-en (see applyI18n below).
@@ -293,7 +294,7 @@ const T = {
     rulesDevVictory: '・<b>勝利点</b>＝隠したまま自動で1点（自分だけ見える）<br>騎士を3枚以上使うと<b>最大騎士力＋2点</b>。',
     rulesGoal: '<b>🎯 目的：</b>最初に<b>10勝利点</b>に到達したプレイヤーの勝ちです。開拓地は1点、都市は2点。さらに最長交易路・最大騎士力・勝利点カードでも点が入ります。',
     rulesHarbors: '<b>⚓ 港と交換：</b>銀行とは通常4:1で交換。港に開拓地・都市があると<b>3:1</b>（どの資源でも）や<b>2:1</b>（指定資源）になります。盤上の港は点線でどのマスと繋がるか示され、保有中の港は銀行パネルに表示されます。手番中は他プレイヤーへ直接交換も提案できます。',
-    rulesHeroesIntro: 'ゲーム開始時、各プレイヤーに<b>固有の英雄</b>が1人ランダムで配られます。英雄の能力は<b>ゲーム中ずっと自動で発動</b>する常時効果です。プレイヤー名の横に英雄バッジが表示されます。',
+    rulesHeroesIntro: 'ゲーム開始時、各プレイヤーに<b>固有の英雄</b>が1人ランダムで配られます。英雄の能力は<b>ゲーム中ずっと有効</b>です（自動で発動するものと、🎲強運の博徒・🔮古の賢者のように<b>自分で選ぶ</b>ものがあります）。プレイヤー名の横に英雄バッジが表示されます。',
     rulesHeroesMine: 'あなたの英雄：<b>{icon} {name}</b><br>{desc}',
     rulesHeroesNote: '※ 英雄能力は最初に配られた1つで固定。交換や変更はできません。',
     rulesHeroesTitle: '拡張：英雄の伝説（yuji オリジナル）',
@@ -312,8 +313,8 @@ const T = {
     rulesSetup: '<b>🏝 初期配置：</b>全員が開拓地と街道を2組ずつ、往復順（あなた→他3人→他3人→あなた）に置きます。2個目の開拓地の周囲のタイルから初期資源を受け取ります。',
     rulesSeven: '<b>🦹 7と盗賊：</b>7が出ると手札8枚以上の人は半分を捨てます。振った人は盗賊を動かし、その土地に接する相手から1枚奪います。盗賊のいる土地は資源を産出しません。',
     rulesVpVisibility: '<b>🔒 勝利点の表示：</b>あなたの合計点だけが表示され、他プレイヤーの点数は伏せられます（ゲーム終了時に公開）。',
-    sageDialogBody: '引いた2枚のカードから1枚をキープ。もう1枚はデッキに戻ります。',
-    sageDialogTitle: '古の賢者：2枚から1枚を選ぶ',
+    sageDialogBody: '引いたカードから1枚をキープ。残りはデッキの底に戻ります。',
+    sageDialogTitle: '古の賢者：好きな1枚を選ぶ',
     selected: '選択済み',
     setupPhaseLabel: '初期配置',
     setupTextRoad: '白い線を選び、下の決定ボタンを押してください',
@@ -538,7 +539,7 @@ const T = {
     rulesDevVictory: '· <b>Victory Point</b> = a hidden point, automatic (only you can see it)<br>Playing 3+ Knights gives you <b>Largest Army +2</b>.',
     rulesGoal: '<b>🎯 Goal:</b> First to <b>10 victory points</b> wins. Settlements are worth 1 point, cities 2. Longest Road, Largest Army and victory point cards also count.',
     rulesHarbors: '<b>⚓ Bank &amp; harbor trade:</b> Bank trades are normally 4:1. A harbor settlement/city gives <b>3:1</b> (any resource) or <b>2:1</b> (a specific resource). Dotted lines on the board show which spots connect to a harbor, and your harbors are listed in the bank panel. You can also propose direct trades to other players on your turn.',
-    rulesHeroesIntro: 'At the start of the game, each player is randomly given a <b>unique hero</b>. Hero abilities are <b>always-on passive effects</b> for the whole game. A hero badge appears next to each player’s name.',
+    rulesHeroesIntro: 'At the start of the game, each player is randomly given a <b>unique hero</b>. Hero abilities are <b>active for the whole game</b> — most trigger automatically, while 🎲 Lucky Gambler and 🔮 Ancient Sage let <b>you choose</b>. A hero badge appears next to each player’s name.',
     rulesHeroesMine: 'Your hero: <b>{icon} {name}</b><br>{desc}',
     rulesHeroesNote: '※ Your hero is fixed for the game once assigned — no trading or changing.',
     rulesHeroesTitle: 'Expansion: Legend of Heroes (yuji original)',
@@ -557,8 +558,8 @@ const T = {
     rulesSetup: '<b>🏝 Setup:</b> Everyone places 2 settlements and 2 roads each, in snake-draft order (you → others → others → you). You receive starting resources from the tiles around your second settlement.',
     rulesSeven: '<b>🦹 7s and the robber:</b> On a 7, anyone with 8+ cards discards half. The roller moves the robber and steals 1 card from an adjacent player. A tile with the robber on it produces nothing.',
     rulesVpVisibility: '<b>🔒 Score visibility:</b> Only your own total is shown; other players’ totals stay hidden until the game ends.',
-    sageDialogBody: 'Keep one of the two drawn cards. The other goes back into the deck.',
-    sageDialogTitle: 'Ancient Sage: pick 1 of 2',
+    sageDialogBody: 'Keep one of the drawn cards. The rest go back to the bottom of the deck.',
+    sageDialogTitle: 'Ancient Sage: pick your card',
     selected: 'Selected',
     setupPhaseLabel: 'Setup',
     setupTextRoad: 'Select a white line, then press Confirm below',
@@ -874,7 +875,7 @@ function newGame() {
     players,
     buildings: {}, roads: {}, harbors: {}, ships: {}, bank: { wood: 19, brick: 19, wheat: 19, sheep: 19, ore: 19 }, robberTile: null, pendingRobberTile: null, pirateTile: null, pendingPirateTile: null, freeRoads: 0, recentBotMoves: [], longestRoadOwner: null, largestArmyOwner: null,
     devDeck: shuffle([...Array(14).fill('knight'), ...Array(5).fill('victory'), ...Array(2).fill('roadBuilding'), ...Array(2).fill('plenty'), ...Array(2).fill('monopoly')]),
-    gameOver: false, botBusy: false, resolvingSeven: false, rollLog: [], pendingCard: null, awaitingPass: false, rerollUsed: false, gamblerChoices: null,
+    gameOver: false, botBusy: false, resolvingSeven: false, sevenSteal: false, rollLog: [], pendingCard: null, awaitingPass: false, rerollUsed: false, gamblerChoices: null,
     islandSettlers: {}, goldPickQueue: [], expansion: gameConfig.expansion || null,
     movedShipThisTurn: false, shipsBuiltThisTurn: [], barbarianStep: 0
   };
@@ -2088,6 +2089,7 @@ function resolveSeven(roller) {
   state.sevenRoller = roller;
   state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > (state.players[i].hero === 'general' ? 15 : 7));
   state.resolvingSeven = true;
+  state.sevenSteal = true; // この盗みは「7」由来（徴税官が2枚奪えるのはここだけ）
   render();
   processDiscardQueue();
 }
@@ -2369,6 +2371,7 @@ function advanceTurn() {
   state.mode = null;
   state.rerollUsed = false;
   state.gamblerChoices = null;
+  state.sevenSteal = false;
   clearCardAction();
   state.turn = (state.turn + 1) % state.players.length;
   if (state.turn === 0) state.round++;
@@ -2732,15 +2735,16 @@ function buyDevelopment(player) {
   if (!state.devDeck.length || !canAfford('development', player)) return false;
   pay('development', player);
   if (state.players[player].hero === 'sage' && state.devDeck.length >= 2) {
-    const card1 = state.devDeck.pop();
-    const card2 = state.devDeck.pop();
+    // 山札が残り2枚なら2枚から、3枚以上あれば3枚から選ぶ
+    const drawn = [];
+    while (drawn.length < 3 && state.devDeck.length) drawn.push(state.devDeck.pop());
     if (state.players[player].bot) {
       const devOrder = ['victory', 'knight', 'roadBuilding', 'plenty', 'monopoly'];
-      const kept = devOrder.indexOf(card1) <= devOrder.indexOf(card2) ? card1 : card2;
+      const kept = [...drawn].sort((a, b) => devOrder.indexOf(a) - devOrder.indexOf(b))[0];
       state.players[player].newDev.push(kept);
-      state.devDeck.unshift(kept === card1 ? card2 : card1);
+      returnSageCards(drawn, kept);
     } else {
-      showSageDialog(player, card1, card2);
+      showSageDialog(player, drawn);
     }
     return true;
   }
@@ -2748,24 +2752,29 @@ function buyDevelopment(player) {
   return true;
 }
 
-function showSageDialog(player, card1, card2) {
+// 選ばなかったカードは山札の底に戻す（同じカードがすぐ再登場しないように）
+function returnSageCards(drawn, kept) {
+  let skippedKept = false;
+  drawn.forEach(card => {
+    if (card === kept && !skippedKept) { skippedKept = true; return; }
+    state.devDeck.unshift(card);
+  });
+}
+
+function showSageDialog(player, drawn) {
   $('#modalClose').hidden = true;
   $('#modalContent').innerHTML = `<h2>🔮 ${t('sageDialogTitle')}</h2>
     <p>${t('sageDialogBody')}</p>
-    <div style="display:flex;gap:12px;margin-top:16px">
-      <button class="sage-pick" data-sage="${card1}" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
-        <b style="display:block;margin-bottom:4px">✦ ${devCardName(card1)}</b><small>${devCardDescLong(card1)}</small>
-      </button>
-      <button class="sage-pick" data-sage="${card2}" style="flex:1;padding:16px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
-        <b style="display:block;margin-bottom:4px">✦ ${devCardName(card2)}</b><small>${devCardDescLong(card2)}</small>
-      </button>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">
+      ${drawn.map((card, index) => `<button class="sage-pick" data-sage-index="${index}" style="flex:1 1 140px;padding:14px;border:2px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;text-align:left">
+        <b style="display:block;margin-bottom:4px">✦ ${devCardName(card)}</b><small>${devCardDescLong(card)}</small>
+      </button>`).join('')}
     </div>`;
   $('#modal').showModal();
   $$('.sage-pick').forEach(btn => btn.onclick = () => {
-    const kept = btn.dataset.sage;
-    const returned = kept === card1 ? card2 : card1;
+    const kept = drawn[Number(btn.dataset.sageIndex)];
     state.players[player].newDev.push(kept);
-    state.devDeck.unshift(returned);
+    returnSageCards(drawn, kept);
     $('#modal').close();
     $('#modalClose').hidden = false;
     render();
@@ -2829,6 +2838,7 @@ function playDevelopment(player, card) {
   state.players[player].devPlayed = true;
   if (card === 'knight') {
     state.players[player].playedKnights++;
+    state.sevenSteal = false; // 騎士カード由来の盗みは1枚（徴税官のボーナスは7限定）
     if (!state.players[player].bot) { beginRobberChoice(); checkWin(player); return true; }
     moveRobberAndSteal(player);
   } else if (card === 'roadBuilding') {
