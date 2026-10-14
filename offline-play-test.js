@@ -553,6 +553,58 @@ run(`(() => {
 })()`);
 console.log('taxman 2/12 tribute test: PASS');
 
+// 徴税官の2枚取りを「7が出てから実際に奪うまで」通しで検証する。
+// stealCount だけの単体確認では、sevenSteal フラグが途中の流れで落ちる事故を拾えないため。
+run(`(() => {
+  const savedHeroes = state.players.map(p => p.hero), savedBots = state.players.map(p => p.bot),
+        savedRes = state.players.map(p => p.resources), savedBuildings = state.buildings, savedRoads = state.roads,
+        savedRobber = state.robberTile, savedTurn = state.turn, savedQueue = state.discardQueue,
+        savedHumans = state.humanCount, savedOver = state.gameOver;
+  gameConfig.expansionHeroes = true;
+  const land = tiles.findIndex(t => t.type !== 'sea' && t.type !== 'desert');
+  const far = tiles.findIndex((t, i) => i !== land && t.type !== 'sea');
+  if (land < 0 || far < 0) throw new Error('テスト前提: 陸地タイルが足りない');
+
+  const prepare = taxmanIndex => {
+    state.players.forEach(p => { p.hero = null; p.bot = true; p.resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 }; });
+    state.buildings = {}; state.roads = {};
+    state.buildings[tiles[land].vertices[0]] = { player: 2, type: 'settlement' };
+    state.robberTile = far;
+    state.players[taxmanIndex].hero = 'taxman';
+    state.players[2].resources = { wood: 5, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+    state.turn = taxmanIndex; state.discardQueue = null;
+    state.resolvingSeven = false; state.sevenSteal = false; state.gameOver = false; state.humanCount = 1;
+  };
+
+  // NPCの徴税官: resolveSeven から moveRobberAndSteal まで一息に流れる
+  prepare(1);
+  resolveSeven(1);
+  if (handTotal(state.players[1]) !== 2) throw new Error('★NPC徴税官が7の通し処理で2枚奪えていない=' + handTotal(state.players[1]));
+
+  // 人間の徴税官: 盗賊を置く操作を挟んでもフラグが維持されること
+  prepare(0);
+  state.players[0].bot = false;
+  resolveSeven(0);
+  if (!state.sevenSteal) throw new Error('★盗賊の配置待ちの間に sevenSteal が落ちている');
+  placeRobber(land);
+  confirmRobberPlacement();
+  if (handTotal(state.players[0]) !== 2) throw new Error('★人間の徴税官が7の通し処理で2枚奪えていない=' + handTotal(state.players[0]));
+  if (handTotal(state.players[2]) !== 3) throw new Error('被害者の減少枚数が合わない=' + handTotal(state.players[2]));
+
+  // 相手の手札が1枚しかなければ1枚しか取れない
+  prepare(1);
+  state.players[2].resources = { wood: 1, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+  resolveSeven(1);
+  if (handTotal(state.players[1]) !== 1) throw new Error('相手が1枚しか持たないのに2枚奪えてしまった');
+
+  state.players.forEach((p, i) => { p.hero = savedHeroes[i]; p.bot = savedBots[i]; p.resources = savedRes[i]; });
+  state.buildings = savedBuildings; state.roads = savedRoads; state.robberTile = savedRobber;
+  state.turn = savedTurn; state.discardQueue = savedQueue; state.humanCount = savedHumans; state.gameOver = savedOver;
+  state.resolvingSeven = false; state.sevenSteal = false;
+  gameConfig.expansionHeroes = false;
+})()`);
+console.log('taxman steals 2 end-to-end test: PASS');
+
 // 詰まり回帰: NPCの交換提案など「閉じられない必須モーダル」が開いている間は、
 // blockingModalOpen が true になり自動進行（ハートビート/ウォッチドッグ）が止まること。
 // また「進まない時」ボタン(recoverGame)で確実に解除できること。
