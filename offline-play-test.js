@@ -395,12 +395,17 @@ run(`(() => {
   // 歴戦の将軍: 15枚は捨て不要・16枚で捨て対象
   state.players.forEach(p => { p.bot = true; p.resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 }; });
   state.players[1].hero = 'general'; state.players[1].bot = false; state.turn = 2;
-  state.players[1].resources.wood = 15; state.resolvingSeven = false; state.discardQueue = null;
+  state.players[1].resources.wood = 18; state.resolvingSeven = false; state.discardQueue = null;
   resolveSeven(2);
-  if (state.discardQueue.includes(1)) throw new Error('将軍: 15枚で捨て対象になった');
-  state.resolvingSeven = false; state.players[1].resources.wood = 16;
+  if (state.discardQueue.includes(1)) throw new Error('将軍: 18枚で捨て対象になった');
+  state.resolvingSeven = false; state.players[1].resources.wood = 19;
   resolveSeven(2);
-  if (!state.discardQueue.includes(1)) throw new Error('将軍: 16枚で捨て対象にならない');
+  if (!state.discardQueue.includes(1)) throw new Error('将軍: 19枚で捨て対象にならない');
+  // 将軍以外は従来どおり8枚から捨てる
+  state.resolvingSeven = false; state.players[1].resources.wood = 8; state.players[1].hero = null;
+  resolveSeven(2);
+  if (!state.discardQueue.includes(1)) throw new Error('通常プレイヤーが8枚で捨て対象にならない');
+  state.players[1].hero = 'general';
   state.resolvingSeven = false; state.discardQueue = null;
 
   // 不屈の守人: 盗まれない / 強欲の徴税官: 2枚奪う
@@ -502,6 +507,51 @@ run(`(() => {
   gameConfig.expansionHeroes = false;
 })()`);
 console.log('knight commander test: PASS');
+
+// 強欲の徴税官: 自分が 2 / 12 を出した時も、手札最多の相手から2枚徴収できる（盗賊は動かさない）。
+run(`(() => {
+  const savedHeroes = state.players.map(p => p.hero), savedRes = state.players.map(p => p.resources),
+        savedRobber = state.robberTile, savedTurn = state.turn, savedSeven = state.sevenSteal;
+  gameConfig.expansionHeroes = true;
+  state.players.forEach(p => { p.hero = null; p.resources = { wood: 0, brick: 0, wheat: 0, sheep: 0, ore: 0 }; });
+  state.turn = 1;
+  state.players[1].hero = 'taxman';
+  state.players[2].resources = { wood: 5, brick: 0, wheat: 0, sheep: 0, ore: 0 }; // 手札最多＝徴収先
+  state.players[3].resources = { wood: 1, brick: 0, wheat: 0, sheep: 0, ore: 0 };
+
+  taxmanBonusSteal(1, 12);
+  if (handTotal(state.players[1]) !== 2) throw new Error('★徴税官が12で2枚徴収できていない=' + handTotal(state.players[1]));
+  if (handTotal(state.players[2]) !== 3) throw new Error('徴収元が手札最多の相手になっていない');
+  if (state.sevenSteal !== savedSeven) throw new Error('★sevenStealフラグが徴収後に戻っていない');
+
+  taxmanBonusSteal(1, 2);
+  if (handTotal(state.players[1]) !== 4) throw new Error('★徴税官が2で徴収できていない=' + handTotal(state.players[1]));
+
+  // 2・12・7以外では何も起きない
+  const before = handTotal(state.players[1]);
+  [3, 6, 8, 11].forEach(n => taxmanBonusSteal(1, n));
+  if (handTotal(state.players[1]) !== before) throw new Error('★2と12以外でも徴収してしまう');
+
+  // 徴税官以外には効果なし
+  state.players[1].hero = null;
+  taxmanBonusSteal(1, 12);
+  if (handTotal(state.players[1]) !== before) throw new Error('徴税官でないのに徴収できてしまう');
+
+  // 守人からは徴収できない
+  state.players[1].hero = 'taxman';
+  state.players[2].hero = 'guardian'; state.players[3].hero = 'guardian';
+  const beforeGuard = handTotal(state.players[1]);
+  taxmanBonusSteal(1, 12);
+  if (handTotal(state.players[1]) !== beforeGuard) throw new Error('★守人から徴収できてしまう');
+
+  // 盗賊は動かない
+  if (state.robberTile !== savedRobber) throw new Error('★2/12の徴収で盗賊が動いてしまった');
+
+  state.players.forEach((p, i) => { p.hero = savedHeroes[i]; p.resources = savedRes[i]; });
+  state.turn = savedTurn; state.sevenSteal = savedSeven;
+  gameConfig.expansionHeroes = false;
+})()`);
+console.log('taxman 2/12 tribute test: PASS');
 
 // 詰まり回帰: NPCの交換提案など「閉じられない必須モーダル」が開いている間は、
 // blockingModalOpen が true になり自動進行（ハートビート/ウォッチドッグ）が止まること。

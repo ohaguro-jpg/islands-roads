@@ -71,22 +71,22 @@ function harborTypeList(count) {
 const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0];
 // Hero Pack (yuji Original) — each player receives one passive hero ability
 const HEROES_EN = {
-  general:      { name: 'Veteran General',    desc: 'No discard on a 7 with 15 cards or fewer (half discarded at 16+)' },
+  general:      { name: 'Veteran General',    desc: 'No discard on a 7 with 18 cards or fewer (half discarded at 19+)' },
   architect:    { name: 'Master Architect',   desc: 'Roads cost only 1 brick (no wood needed)' },
   sage:         { name: 'Ancient Sage',       desc: 'Draw 3 development cards when buying and keep your favorite' },
   guardian:     { name: 'Unbreakable Guardian', desc: 'Never loses resources to the robber or pirate; production continues even with the robber on your tile' },
   gambler:      { name: 'Lucky Gambler',      desc: 'On your turn, roll the dice 3 times and pick your favorite while watching the board' },
-  taxman:       { name: 'Greedy Taxman',      desc: 'Steals 2 cards instead of 1 when a 7 is rolled (not with a knight card)' },
+  taxman:       { name: 'Greedy Taxman',      desc: 'Steals 2 cards on your 7. Also collects 2 cards from the richest rival on your 2 or 12 (only 1 with a knight card)' },
   harbormaster: { name: 'Harbor Master',      desc: 'If you own at least one harbor, every bank/port trade becomes 2:1' },
   commander:    { name: 'Knight Commander',   desc: 'Counts as one extra knight for Largest Army (2 knights are enough)' }
 };
 const HEROES = [
-  { id: 'general',     icon: '🗡', get name() { return LANG === 'en' ? HEROES_EN.general.name : '歴戦の将軍'; },     get desc() { return LANG === 'en' ? HEROES_EN.general.desc : '手札が 15 枚以下なら 7 が出ても捨て不要（16 枚以上で半分捨て）'; } },
+  { id: 'general',     icon: '🗡', get name() { return LANG === 'en' ? HEROES_EN.general.name : '歴戦の将軍'; },     get desc() { return LANG === 'en' ? HEROES_EN.general.desc : '手札が 18 枚以下なら 7 が出ても捨て不要（19 枚以上で半分捨て）'; } },
   { id: 'architect',   icon: '🏗', get name() { return LANG === 'en' ? HEROES_EN.architect.name : '天才建築家'; },   get desc() { return LANG === 'en' ? HEROES_EN.architect.desc : '街道の建設コストがレンガ 1 枚のみ（木材不要）'; } },
   { id: 'sage',        icon: '🔮', get name() { return LANG === 'en' ? HEROES_EN.sage.name : '古の賢者'; },          get desc() { return LANG === 'en' ? HEROES_EN.sage.desc : '発展カード購入時に 3 枚引いて好きな 1 枚を選べる'; } },
   { id: 'guardian',    icon: '🛡', get name() { return LANG === 'en' ? HEROES_EN.guardian.name : '不屈の守人'; },    get desc() { return LANG === 'en' ? HEROES_EN.guardian.desc : '盗賊・海賊に資源を 1 枚も奪われず、盗賊が乗っても生産が止まらない（7 の捨て札は通常どおり）'; } },
   { id: 'gambler',     icon: '🎲', get name() { return LANG === 'en' ? HEROES_EN.gambler.name : '強運の博徒'; },     get desc() { return LANG === 'en' ? HEROES_EN.gambler.desc : '自分の手番、ダイスを 3 回ふって盤面を見ながら好きな 1 つを選べる'; } },
-  { id: 'taxman',      icon: '💰', get name() { return LANG === 'en' ? HEROES_EN.taxman.name : '強欲の徴税官'; },    get desc() { return LANG === 'en' ? HEROES_EN.taxman.desc : '7 が出て盗む時だけ、1 枚ではなく 2 枚奪える（騎士カードでは 1 枚）'; } },
+  { id: 'taxman',      icon: '💰', get name() { return LANG === 'en' ? HEROES_EN.taxman.name : '強欲の徴税官'; },    get desc() { return LANG === 'en' ? HEROES_EN.taxman.desc : '自分が 7 を出した時、2 枚奪える。さらに 2・12 を出した時も手札が最も多い相手から 2 枚徴収（騎士カードでは 1 枚）'; } },
   { id: 'harbormaster', icon: '🌊', get name() { return LANG === 'en' ? HEROES_EN.harbormaster.name : '港の主'; },   get desc() { return LANG === 'en' ? HEROES_EN.harbormaster.desc : '港を 1 つでも持っていれば、銀行・港との交換が全資源 2:1'; } },
   { id: 'commander',   icon: '⚔', get name() { return LANG === 'en' ? HEROES_EN.commander.name : '百戦の騎士団長'; }, get desc() { return LANG === 'en' ? HEROES_EN.commander.desc : '最大騎士力の判定で騎士カードを 1 枚多く数える（騎士 2 枚で獲得できる）'; } },
 ];
@@ -96,6 +96,8 @@ function robbable(player) { return state.players[player]?.hero !== 'guardian'; }
 function stealCount(player) { return state.players[player]?.hero === 'taxman' && state.sevenSteal ? 2 : 1; }
 // 百戦の騎士団長は最大騎士力の判定だけ騎士を1枚多く数える（手札の実枚数は増えない）
 function knightPower(player) { return (state.players[player]?.playedKnights || 0) + (state.players[player]?.hero === 'commander' ? 1 : 0); }
+// 7が出た時に捨て札が必要になる手札枚数の上限。歴戦の将軍だけ18枚まで耐える。
+function discardLimit(player) { return state.players[player]?.hero === 'general' ? 18 : 7; }
 
 // Translation dictionary for toasts / dialogs / other dynamic (non-HTML-authored) strings.
 // Static HTML text lives in the .html files as data-ja/data-en (see applyI18n below).
@@ -136,6 +138,7 @@ const T = {
     confirmTile: 'この土地でよければ「確定」を押してください',
     robberMovedNoVictim: '盗賊を移動しました（奪える相手はいません）',
     stolenFrom: '{name}から{n}枚獲得しました',
+    taxmanTribute: '💰 徴収：{sum}が出たので{name}から{n}枚奪いました',
     robberMoved: '盗賊を移動しました',
     recovered: '状態を復旧しました。まだ進まない場合はもう一度押すか「新しいゲーム」を試してください',
     barbNoCities: '🏴 蛮族が来たが、都市がないので被害なし！',
@@ -381,6 +384,7 @@ const T = {
     confirmTile: 'Press "Confirm" if this tile is fine',
     robberMovedNoVictim: 'Robber moved (no one to rob)',
     stolenFrom: 'Took {n} card(s) from {name}',
+    taxmanTribute: '💰 Tribute: you rolled {sum}, so you took {n} card(s) from {name}',
     robberMoved: 'Robber moved',
     recovered: 'State recovered. Press again or try "New Game" if it is still stuck',
     barbNoCities: '🏴 The barbarians arrived, but no cities means no damage!',
@@ -2067,7 +2071,30 @@ function distributeRoll(a, b) {
     });
   }
   toast(gained ? t('rolledGained', { sum, gained }) : t('rolledNoGain', { sum }));
+  taxmanBonusSteal(state.turn, sum);
   if (state.goldPickQueue && state.goldPickQueue.length) processGoldPickQueue();
+}
+
+// 強欲の徴税官: 一番出にくい 2 と 12 を自分が出した時も徴収できる（盗賊は動かさない）。
+// 相手を選ぶダイアログは出さず手札最多の相手から自動徴収する（金鉱の選択など他のダイアログと競合させないため）。
+function taxmanBonusSteal(roller, sum) {
+  if (sum !== 2 && sum !== 12) return;
+  if (state.players[roller]?.hero !== 'taxman') return;
+  const victims = state.players.map((_, i) => i).filter(i => i !== roller && robbable(i) && randomOwnedResource(i));
+  if (!victims.length) return;
+  const victim = victims.sort((a, b) => handSize(b) - handSize(a))[0];
+  const previous = state.sevenSteal;
+  state.sevenSteal = true; // 徴税官の2枚取りを有効にする
+  let taken = 0;
+  for (let k = 0; k < stealCount(roller); k++) {
+    const resource = randomOwnedResource(victim);
+    if (!resource) break;
+    state.players[victim].resources[resource]--;
+    state.players[roller].resources[resource]++;
+    taken++;
+  }
+  state.sevenSteal = previous;
+  if (taken) toast(t('taxmanTribute', { name: state.players[victim].name, n: taken, sum }));
 }
 
 function randomOwnedResource(player) {
@@ -2082,7 +2109,7 @@ function resolveSeven(roller) {
   // NPCは自動で半分を捨てる。人間は順番にダイアログで捨てる。
   state.players.forEach((player, i) => {
     if (!player.bot) return;
-    const limit = player.hero === 'general' ? 15 : 7;
+    const limit = discardLimit(i);
     const count = handTotal(player);
     if (count <= limit) return;
     for (let k = 0; k < Math.floor(count / 2); k++) {
@@ -2091,7 +2118,7 @@ function resolveSeven(roller) {
     }
   });
   state.sevenRoller = roller;
-  state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > (state.players[i].hero === 'general' ? 15 : 7));
+  state.discardQueue = state.players.map((p, i) => i).filter(i => !state.players[i].bot && handTotal(state.players[i]) > discardLimit(i));
   state.resolvingSeven = true;
   state.sevenSteal = true; // この盗みは「7」由来（徴税官が2枚奪えるのはここだけ）
   render();
